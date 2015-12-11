@@ -4,10 +4,10 @@
    contain the root `toctree` directive.
 
 ***********
-The WTO API
+The DSA API
 ***********
 
-.. automodule:: WtoDataBase3
+.. automodule:: DsaDataBase3
    :members:
 
 .. automodule:: DsaAlgorithm3

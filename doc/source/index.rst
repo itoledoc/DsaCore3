@@ -3,8 +3,8 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to WTO3's documentation!
-================================
+Welcome to DSA Core 3's documentation!
+======================================
 
 Contents:
 
@@ -13,7 +13,7 @@ Contents:
 
    readme
    use_cases
-   wtoapi
+   dsa_api
 
 
 

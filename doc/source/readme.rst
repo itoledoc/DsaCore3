@@ -1,6 +1,6 @@
-************************
-Requirements to run WTO3
-************************
+****************************
+Requirements to run DsaCore3
+****************************
 
 
 Anaconda environment
@@ -32,7 +32,7 @@ Environment variables to be loaded
     export TNS_ADMIN=/path/to/tnsnames.ora
     export PATH="$HOME/anaconda/bin:$PATH"  --> path to the anaconda environment, in this case installed in the home directory
     export DSA="/path/to/DsaCore3/"
-    export CON_STR="almasu/alma4dba@ALMA_ONLINE.SCO.CL" --> conection string to archive. If in the OSF, "almasu/alma4dba@ALMA_ONLINE.OSF.CL"
+    export CON_STR="######" --> conection string to archive. If in the OSF, "#####"
     export APDM_C3="/path/to/save/apdms"
     export PYTHONPATH="$PYTHONPATH:/path/to/DsaCore3"
 
@@ -51,17 +51,15 @@ Initialization of the Wto class
     iers.IERS.iers_table = iers.IERS_A.open(
         download_file(iers.IERS_A_URL, cache=True))
 
-    datas = Data.DsaAlgorithm3()
+    datas = Data.DsaDatabase3(path='/path/to/xml/storage/', allc2=False, loadp1=False)
 
-
-    datas.write_ephem_coords()
-    datas.static_param()
-
-    datas.selector(
+    dsa = Dsa.DsaAlgorithm3(datas)
+    dsa.write_ephem_coords()
+    dsa.static_param()
+    dsa.selector(
         cycle=['2015.1', '2015.A'], minha=-4., maxha=4., letterg=['A', 'B'],
-        array_id='last', pwv=0.5)
-
-    scorer = datas.master_wto_df.apply(
+        array_id='last', pwv=1.5)
+    scorer = dsa.master_dsa_df.apply(
         lambda x: WtoScor.calc_all_scores(
             1.3, x['maxPWVC'], x['Exec. Frac'], x['sbName'], x['array'], x['ARcor'],
             x['DEC'], x['array_ar_cond'], x['minAR'], x['maxAR'], x['Observed'],

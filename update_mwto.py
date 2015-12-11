@@ -23,7 +23,7 @@ except IOError:
     datas = Data.DsaDatabase3(path='/users/aod/.mwto/',
                               allc2=False, loadp1=False)
 
-dsa = Dsa.WtoAlgorithm3(datas)
+dsa = Dsa.DsaAlgorithm3(datas)
 
 dsa.write_ephem_coords()
 dsa.static_param()
@@ -37,14 +37,14 @@ dsa.selection_df['PWV now date'] = (
     pd.read_sql('pwv_data', engine).time.values[0])
 dsa.selection_df['date'] = str(dsa._ALMA_ephem.date)
 dsa.selection_df['arrayname'] = dsa.bl_arrays.iloc[0, 3]
-scorer = dsa.master_wto_df.apply(
+scorer = dsa.master_dsa_df.apply(
     lambda x: WtoScor.calc_all_scores(
         1.3, x['maxPWVC'], x['Exec. Frac'], x['sbName'], x['array'], x['ARcor'],
         x['DEC'], x['array_ar_cond'], x['minAR'], x['maxAR'], x['Observed'],
         x['EXECOUNT'], x['PRJ_SCIENTIFIC_RANK'], x['DC_LETTER_GRADE'],
         x['CYCLE'], x['HA']), axis=1)
 
-dsa.master_wto_df['allconfs'] = dsa.obs_param.apply(
+dsa.master_dsa_df['allconfs'] = dsa.obs_param.apply(
     lambda x: ','.join(
         [str(x['C36_1']), str(x['C36_2']), str(x['C36_3']), str(x['C36_4']),
          str(x['C36_5']), str(x['C36_7']), str(x['C36_8'])]), axis=1)
@@ -55,7 +55,7 @@ dsa.inputs.to_sql('inputs_wto_text', engine, index_label='Cycle',
                   if_exists='replace', schema='wto')
 dsa.selection_df.to_sql('selection_wto_test', engine, index_label='SBUID',
                         if_exists='replace', schema='wto')
-dsa.master_wto_df.to_sql('master_wto_test', engine, index_label='SBUID',
+dsa.master_dsa_df.to_sql('master_wto_test', engine, index_label='SBUID',
                          if_exists='replace', schema='wto')
 dsa.obs_param.to_sql('staticparam_wto_test', engine, index_label='SBUID',
                      if_exists='replace', schema='wto')

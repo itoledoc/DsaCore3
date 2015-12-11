@@ -51,7 +51,7 @@ Initialization of the Wto class
     iers.IERS.iers_table = iers.IERS_A.open(
         download_file(iers.IERS_A_URL, cache=True))
 
-    datas = Data.WtoAlgorithm3()
+    datas = Data.DsaAlgorithm3()
 
 
     datas.write_ephem_coords()

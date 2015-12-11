@@ -250,7 +250,7 @@ if __name__ == '__main__':
     datas = Wto.DsaDatabase3(path='/home/itoledo/Documents/twiki/',
                              refresh_apdm=opts.reload, allc2=False,
                              loadp1=False)
-    dsa = Dsa.WtoAlgorithm3(datas)
+    dsa = Dsa.DsaAlgorithm3(datas)
     dsa.write_ephem_coords()
 
     dsa.static_param(horizon=20)

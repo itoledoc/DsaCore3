@@ -10,6 +10,6 @@ The WTO API
 .. automodule:: WtoDataBase3
    :members:
 
-.. automodule:: WtoAlgorithm3
+.. automodule:: DsaAlgorithm3
    :members:
 

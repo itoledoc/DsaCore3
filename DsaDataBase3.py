@@ -30,12 +30,12 @@ class DsaDatabase3(object):
     dataframes, and it also has the methods to connect and query the OSF
     archive for this info (ETL)
 
-    A default instance will use the directory found on the $WTO system variable,
+    A default instance will use the directory found on the $DSA system variable,
     as a cache, and it will found the projects in the appropiate state for the
     relevant Cycles.
 
     :key refresh_apdm: Should the disk xml database be rebuilt? Default is True
-    :key path: path to store the xml database. Default is $WTO variable
+    :key path: path to store the xml database. Default is $DSA variable
     :key allc2: temporal parameter for Cycle 3, load all Cycle2 projects, and
          not only grade A. Default = True
     :key loadp1: load phase I projects, and not only phase II. Default=True
@@ -45,7 +45,7 @@ class DsaDatabase3(object):
 
     def __init__(self, path=None, refresh_apdm=True, allc2=True, loadp1=True):
         """
-        Initialize the WTO3 database
+        Initialize the DSA3 database
         :type path: str
         :type refresh_apdm: bool
         :type allc2: bool
@@ -57,14 +57,14 @@ class DsaDatabase3(object):
         self._allc2 = allc2
         self._loadp1 = loadp1
         # Default Paths and Preferences
-        self._wto_path = os.environ['WTO']
+        self._dsa_path = os.environ['DSA']
         if path:
             self._data_path = path
         else:
             self._data_path = os.environ['APDM_C3']
         self.status = ["Canceled", "Rejected"]
         self.obsproject = pd.DataFrame()
-        self._ares = ARes.ArrayRes(self._wto_path + 'conf/')
+        self._ares = ARes.ArrayRes(self._dsa_path + 'conf/')
 
         self._sql1 = str(
             "SELECT obs1.PRJ_ARCHIVE_UID as OBSPROJECT_UID, obs1.PI, "
@@ -177,7 +177,7 @@ class DsaDatabase3(object):
     def start_apa(self, update_arch=False):
 
         """
-        Initializes the wtoDatabase dataframes.
+        Initializes the DsaDatabase dataframes.
 
         The function queries the archive to look for cycle 1 and cycle 2
         projects, disregarding any projects with status "Approved",

@@ -40,7 +40,7 @@ class DSACoreService(xmlrpc.XMLRPC):
         import DsaScorers3 as WtoScor
 
         self.data.update_status()
-        dsa = Wto.WtoAlgorithm3(self.data)
+        dsa = Wto.DsaAlgorithm3(self.data)
         dsa.write_ephem_coords()
         dsa.static_param()
 
@@ -53,7 +53,7 @@ class DSACoreService(xmlrpc.XMLRPC):
             cycle=['2015.1', '2015.A'], minha=-4., maxha=4., letterg=['A', 'B'],
             array_id='last', pwv=0.5)
 
-        scorer = dsa.master_wto_df.apply(
+        scorer = dsa.master_dsa_df.apply(
             lambda x: WtoScor.calc_all_scores(
                 pwv, x['maxPWVC'], x['Exec. Frac'], x['sbName'], x['array'], x['ARcor'],
                 x['DEC'], x['array_ar_cond'], x['minAR'], x['maxAR'], x['Observed'],
@@ -61,7 +61,7 @@ class DSACoreService(xmlrpc.XMLRPC):
                 x['CYCLE'], x['HA']), axis=1)
 
         import pandas as pd
-        fin = pd.merge(pd.merge(dsa.master_wto_df, dsa.selection_df, on='SB_UID'),
+        fin = pd.merge(pd.merge(dsa.master_dsa_df, dsa.selection_df, on='SB_UID'),
                        scorer.reset_index(), on='SB_UID').set_index(
             'SB_UID', drop=False).sort('Score', ascending=0)
         return fin.to_json(orient='index');

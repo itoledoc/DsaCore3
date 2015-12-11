@@ -206,7 +206,7 @@ def get_lst(datestr, observer):
     return str(observer.sidereal_time())
 
 
-datas = Wto.WtoAlgorithm3()
+datas = Wto.DsaAlgorithm3()
 datas.write_ephem_coords()
 
 datas.static_param(horizon=30)

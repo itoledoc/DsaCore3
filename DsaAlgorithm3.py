@@ -1,7 +1,7 @@
 import pandas as pd
 import ephem
 import os
-import DsaTools3 as wtool
+import DsaTools3 as DsaTool
 import visibiltyTools as rUV
 import datetime as dt
 
@@ -91,13 +91,14 @@ CYC_NA = {'2013.A': 34,
 
 
 # noinspection PyAttributeOutsideInit
-class WtoAlgorithm3(object):
+class DsaAlgorithm3(object):
     """
-    Inherits from WtoDatabase, adds the methods for selection and scoring.
+    Input is instance from DsaDatabase, adds the methods for selection and
+    scoring.
     It also sets the default parameters for these methods: pwv=1.2, date=now,
     array angular resolution, transmission=0.5, minha=-5, maxha=3, etc.
 
-    :return: A WtoAlgorithm instance.
+    :return: A DsaAlgorithm instance.
 
     Should run:
        .update_archive
@@ -116,14 +117,14 @@ class WtoAlgorithm3(object):
 
         self.data = data
         self.tau = pd.read_csv(
-            self.data._wto_path + 'conf/tau.csv', sep=',', header=0).set_index(
+            self.data._dsa_path + 'conf/tau.csv', sep=',', header=0).set_index(
             'freq')
         self.tsky = pd.read_csv(
-            self.data._wto_path + 'conf/tskyR.csv', sep=',',
+            self.data._dsa_path + 'conf/tskyR.csv', sep=',',
             header=0).set_index(
                 'freq')
         self.pwvdata = pd.read_pickle(
-            self.data._wto_path + 'conf/pwvdata2.pandas')  # .set_index('freq')
+            self.data._dsa_path + 'conf/pwvdata2.pandas')  # .set_index('freq')
         # self.pwvdata.index = pd.Float64Index(
         #     pd.np.round(self.pwvdata.index.values, decimals=1), name=u'freq')
 
@@ -172,7 +173,7 @@ class WtoAlgorithm3(object):
             'SB_UID', drop=False)
 
         results = ephem_sb.apply(
-            lambda x: wtool.calc_ephem_coords(
+            lambda x: DsaTool.calc_ephem_coords(
                 x['solarSystem'], x['ephemeris'], x['SB_UID'],
                 alma=self._ALMA_ephem),
             axis=1)
@@ -194,7 +195,7 @@ class WtoAlgorithm3(object):
                 'RA == 0').SB_UID.unique()
 
             self.obs_param.ix[idx] = self.schedblocks.ix[idx].apply(
-                lambda r: wtool.observable(
+                lambda r: DsaTool.observable(
                     r['RA'], r['DEC'], self._ALMA_ephem, r['RA'], r['minAR'],
                     r['maxAR'], r['array'], r['SB_UID'], horizon=horizon),
                 axis=1
@@ -202,7 +203,7 @@ class WtoAlgorithm3(object):
 
         else:
             self.obs_param = self.schedblocks.apply(
-                lambda r: wtool.observable(
+                lambda r: DsaTool.observable(
                     r['RA'], r['DEC'], self._ALMA_ephem, r['RA'], r['minAR'],
                     r['maxAR'], r['array'], r['SB_UID'], horizon=horizon),
                 axis=1
@@ -291,32 +292,32 @@ class WtoAlgorithm3(object):
         print self._time_astropy
 
         self._aggregate_dfs()
-        self.master_wto_df['array'] = self.master_wto_df.apply(
+        self.master_dsa_df['array'] = self.master_dsa_df.apply(
             lambda x: 'SEVEN-M' if x['array'] == "ACA" else
             x['array'], axis=1
         )
-        self.selection_df = self.master_wto_df[['SB_UID']].copy()
+        self.selection_df = self.master_dsa_df[['SB_UID']].copy()
 
         # select array kind
 
         self.selection_df['selArray'] = (
-            self.master_wto_df['array'] == array_kind)
+            self.master_dsa_df['array'] == array_kind)
 
         # select valid Prj States
         self.selection_df['selPrjState'] = (
-            self.master_wto_df.apply(
+            self.master_dsa_df.apply(
                 lambda x: True if x['PRJ_STATUS'] in prj_status else False,
                 axis=1))
 
         # select valid SB States
         self.selection_df['selSBState'] = (
-            self.master_wto_df.apply(
+            self.master_dsa_df.apply(
                 lambda x: True if x['SB_STATE'] in sb_status else False,
                 axis=1))
 
         # select By grades
         self.selection_df['selGrade'] = (
-            self.master_wto_df.apply(
+            self.master_dsa_df.apply(
                 lambda x: True if
                 x['CYCLE'] in cycle and x['DC_LETTER_GRADE'] in letterg else
                 False, axis=1)
@@ -324,7 +325,7 @@ class WtoAlgorithm3(object):
 
         # select by band
         self.selection_df['selBand'] = (
-            self.master_wto_df.apply(
+            self.master_dsa_df.apply(
                 lambda x: True if x['band'] in bands else False,
                 axis=1
             )
@@ -336,7 +337,7 @@ class WtoAlgorithm3(object):
 
         if check_count:
             self.selection_df['selCount'] = (
-                self.master_wto_df.EXECOUNT > self.master_wto_df.Observed)
+                self.master_dsa_df.EXECOUNT > self.master_dsa_df.Observed)
 
         self.selection_df['selConf'] = True
 
@@ -344,9 +345,9 @@ class WtoAlgorithm3(object):
 
         if array_kind == "TWELVE-M":
 
-            self.master_wto_df['blmax'] = self.master_wto_df.apply(
+            self.master_dsa_df['blmax'] = self.master_dsa_df.apply(
                 lambda row: rUV.compute_bl(row['minAR'] / 0.8, 100.), axis=1)
-            self.master_wto_df['blmin'] = self.master_wto_df.apply(
+            self.master_dsa_df['blmin'] = self.master_dsa_df.apply(
                 lambda row: rUV.compute_bl(row['LAScor'], 100., las=True),
                 axis=1)
 
@@ -359,19 +360,19 @@ class WtoAlgorithm3(object):
                         qstring += '%s == "%s"' % (col, c)
                     else:
                         qstring += '%s == "%s" or ' % (col, c)
-                sbs_sel = self.master_wto_df.query(qstring).SB_UID.unique()
+                sbs_sel = self.master_dsa_df.query(qstring).SB_UID.unique()
                 self.selection_df['selConf'] = self.selection_df.apply(
                     lambda x: True if x['SB_UID'] in sbs_sel else False,
                     axis=1
                 )
 
-                self.master_wto_df['bl_ratio'] = 1.
-                self.master_wto_df['array_ar_cond'] = self.master_wto_df.apply(
+                self.master_dsa_df['bl_ratio'] = 1.
+                self.master_dsa_df['array_ar_cond'] = self.master_dsa_df.apply(
                     lambda x: CONFRES[x['BestConf']] if x['BestConf'] in conf
                     else pd.np.NaN,
                     axis=1
                 )
-                self.master_wto_df['num_bl_use'] = 630.
+                self.master_dsa_df['num_bl_use'] = 630.
 
                 if calc_blratio:
                     try:
@@ -380,13 +381,13 @@ class WtoAlgorithm3(object):
                         self._query_array()
                         array_id = self.bl_arrays.iloc[0, 3]
                     array_ar, num_bl, num_ant, ruv = self._get_bl_prop(array_id)
-                    self.master_wto_df[['array_ar_cond', 'num_bl_use']] = (
-                        self.master_wto_df.apply(
+                    self.master_dsa_df[['array_ar_cond', 'num_bl_use']] = (
+                        self.master_dsa_df.apply(
                             lambda x: self._get_sbbased_bl_prop(
                                 ruv, x['blmin'] * 0.9, x['blmax'] * 1.1),
                             axis=1)
                     )
-                    self.master_wto_df['bl_ratio'] = self.master_wto_df.apply(
+                    self.master_dsa_df['bl_ratio'] = self.master_dsa_df.apply(
                         lambda x: calc_bl_ratio(
                             x['array'], x['CYCLE'], x['num_bl_use'],
                             self.selection_df.ix[x.name, 'selConf']),
@@ -399,19 +400,19 @@ class WtoAlgorithm3(object):
                     array_id = self.bl_arrays.iloc[0, 3]
 
                 ar, numbl, numant, ruv = self._get_bl_prop(array_id)
-                self.master_wto_df[['array_ar_cond', 'num_bl_use']] = (
-                    self.master_wto_df.apply(
+                self.master_dsa_df[['array_ar_cond', 'num_bl_use']] = (
+                    self.master_dsa_df.apply(
                         lambda x: self._get_sbbased_bl_prop(
                             ruv, x['blmin'] * 0.9, x['blmax'] * 1.1), axis=1)
                 )
 
-                self.selection_df['selConf'] = self.master_wto_df.apply(
+                self.selection_df['selConf'] = self.master_dsa_df.apply(
                     lambda x: True if (x['array_ar_cond'] > x['minAR']) and
                                       (x['array_ar_cond'] < x['maxAR']) else
                     False, axis=1
                 )
 
-                self.master_wto_df['bl_ratio'] = self.master_wto_df.apply(
+                self.master_dsa_df['bl_ratio'] = self.master_dsa_df.apply(
                     lambda x: calc_bl_ratio(
                         x['array'], x['CYCLE'], x['num_bl_use'],
                         self.selection_df.ix[x.name, 'selConf']),
@@ -423,15 +424,15 @@ class WtoAlgorithm3(object):
         elif array_kind == "SEVEN-M":
             if numant is None:
                 numant = 10.
-            self.selection_df['selConf'] = self.master_wto_df.apply(
+            self.selection_df['selConf'] = self.master_dsa_df.apply(
                 lambda x: True if x['array'] == "SEVEN-M" else
                 False, axis=1
             )
-            self.master_wto_df['blmax'] = pd.np.NaN
-            self.master_wto_df['blmin'] = pd.np.NaN
-            self.master_wto_df['array_ar_cond'] = pd.np.NaN
-            self.master_wto_df['num_bl_use'] = pd.np.NaN
-            self.master_wto_df['bl_ratio'] = self.master_wto_df.apply(
+            self.master_dsa_df['blmax'] = pd.np.NaN
+            self.master_dsa_df['blmin'] = pd.np.NaN
+            self.master_dsa_df['array_ar_cond'] = pd.np.NaN
+            self.master_dsa_df['num_bl_use'] = pd.np.NaN
+            self.master_dsa_df['bl_ratio'] = self.master_dsa_df.apply(
                 lambda x: calc_bl_ratio(
                     x['array'], x['CYCLE'], x['num_bl_use'],
                     self.selection_df.ix[x.name, 'selConf'], numant=numant),
@@ -442,72 +443,72 @@ class WtoAlgorithm3(object):
         else:
             if numant is None:
                 numant = 10.
-            self.selection_df['selConf'] = self.master_wto_df.apply(
+            self.selection_df['selConf'] = self.master_dsa_df.apply(
                 lambda x: True if x['array'] == "TP-Array" else
                 False, axis=1
             )
-            self.master_wto_df['blmax'] = pd.np.NaN
-            self.master_wto_df['blmin'] = pd.np.NaN
-            self.master_wto_df['array_ar_cond'] = pd.np.NaN
-            self.master_wto_df['num_bl_use'] = pd.np.NaN
-            self.master_wto_df['bl_ratio'] = 1.
+            self.master_dsa_df['blmax'] = pd.np.NaN
+            self.master_dsa_df['blmin'] = pd.np.NaN
+            self.master_dsa_df['array_ar_cond'] = pd.np.NaN
+            self.master_dsa_df['num_bl_use'] = pd.np.NaN
+            self.master_dsa_df['bl_ratio'] = 1.
 
         # select observable: elev, ha, moon & sun distance
 
         try:
             c = SkyCoord(
-                ra=self.master_wto_df.RA*u.degree,
-                dec=self.master_wto_df.DEC*u.degree,
+                ra=self.master_dsa_df.RA * u.degree,
+                dec=self.master_dsa_df.DEC * u.degree,
                 location=ALMA, obstime=self._time_astropy)
         except IndexError:
-            print("Nothing to observe? %s" % len(self.master_wto_df))
+            print("Nothing to observe? %s" % len(self.master_dsa_df))
             self._availableobs = False
             return
 
         ha = self._time_astropy.sidereal_time('apparent') - c.ra
-        self.master_wto_df['HA'] = ha.wrap_at(180*u.degree).value
-        self.master_wto_df['RAh'] = c.ra.hour
-        self.master_wto_df['elev'] = c.transform_to(
+        self.master_dsa_df['HA'] = ha.wrap_at(180 * u.degree).value
+        self.master_dsa_df['RAh'] = c.ra.hour
+        self.master_dsa_df['elev'] = c.transform_to(
             AltAz(obstime=self._time_astropy, location=ALMA)).alt.value
-        corr_el = ((self.master_wto_df.ephem != 'N/A') &
-                   (self.master_wto_df.ephem != 'OK'))
-        self.master_wto_df.ix[corr_el, 'elev'] = -90.
-        self.master_wto_df.ix[corr_el, 'HA'] = -24.
+        corr_el = ((self.master_dsa_df.ephem != 'N/A') &
+                   (self.master_dsa_df.ephem != 'OK'))
+        self.master_dsa_df.ix[corr_el, 'elev'] = -90.
+        self.master_dsa_df.ix[corr_el, 'HA'] = -24.
 
         self.selection_df['selElev'] = (
-            self.master_wto_df.elev >= horizon)
+            self.master_dsa_df.elev >= horizon)
 
         self.selection_df['selHA'] = (
-            (self.master_wto_df.HA >= minha) &
-            (self.master_wto_df.HA <= maxha)
+            (self.master_dsa_df.HA >= minha) &
+            (self.master_dsa_df.HA <= maxha)
         )
 
         # Sel Conditions, exec. frac
 
-        ind1 = pd.np.around(self.master_wto_df.repfreq, decimals=1)
+        ind1 = pd.np.around(self.master_dsa_df.repfreq, decimals=1)
 
         pwv_str = (str(int(pwv / 0.05) * 0.05 +
                    (0.05 if (pwv % 0.05) > 0.02 else 0.)))
 
-        self.master_wto_df['transmission'] = self.pwvdata.ix[
+        self.master_dsa_df['transmission'] = self.pwvdata.ix[
             ind1, pwv_str].values
-        self.master_wto_df['tau'] = self.tau.ix[ind1, pwv_str].values
-        self.master_wto_df['tsky'] = self.tsky.ix[ind1, pwv_str].values
-        self.master_wto_df['airmass'] = self.master_wto_df.apply(
+        self.master_dsa_df['tau'] = self.tau.ix[ind1, pwv_str].values
+        self.master_dsa_df['tsky'] = self.tsky.ix[ind1, pwv_str].values
+        self.master_dsa_df['airmass'] = self.master_dsa_df.apply(
             lambda x: calc_airmass(x['elev'], transit=False), axis=1)
-        self.master_wto_df['tsys'] = (
-            self.master_wto_df.apply(
+        self.master_dsa_df['tsys'] = (
+            self.master_dsa_df.apply(
                 lambda x: calc_tsys(x['band'], x['tsky'], x['tau'],
                                     x['airmass']), axis=1))
-        self.master_wto_df['tsys_ratio'] = self.master_wto_df.apply(
+        self.master_dsa_df['tsys_ratio'] = self.master_dsa_df.apply(
             lambda x: (x['tsys'] / x['tsys_ot'])**2. if x['tsys'] <= 25000. else
             pd.np.inf, axis=1)
 
-        self.master_wto_df['Exec. Frac'] = self.master_wto_df.apply(
+        self.master_dsa_df['Exec. Frac'] = self.master_dsa_df.apply(
             lambda x: 1 / (x['bl_ratio'] * x['tsys_ratio']) if
             (x['bl_ratio'] * x['tsys_ratio']) <= 100. else 0., axis=1)
 
-        self.master_wto_df.set_index('SB_UID', drop=False, inplace=True)
+        self.master_dsa_df.set_index('SB_UID', drop=False, inplace=True)
         self.selection_df.set_index('SB_UID', drop=False, inplace=True)
 
         savedate = ALMA1.date
@@ -553,7 +554,7 @@ class WtoAlgorithm3(object):
         """
 
         """
-        self.master_wto_df = pd.merge(
+        self.master_dsa_df = pd.merge(
             self.data.projects.query('phase == "II"')[
                 ['OBSPROJECT_UID', 'CYCLE', 'CODE', 'DC_LETTER_GRADE',
                  'PRJ_SCIENTIFIC_RANK', 'PRJ_STATUS']],
@@ -562,14 +563,14 @@ class WtoAlgorithm3(object):
                  'isTimeConstrained', 'isCalSpecial', 'isSpectralScan']],
             on='OBSPROJECT_UID', how='left')
 
-        self.master_wto_df = pd.merge(
-            self.master_wto_df,
+        self.master_dsa_df = pd.merge(
+            self.master_dsa_df,
             self.data.sblocks[
                 ['OBSPROJECT_UID', 'OUS_ID', 'GOUS_ID', 'MOUS_ID', 'SB_UID']],
             on=['OBSPROJECT_UID', 'OUS_ID'], how='left')
 
-        self.master_wto_df = pd.merge(
-            self.master_wto_df,
+        self.master_dsa_df = pd.merge(
+            self.master_dsa_df,
             self.schedblocks[
                 ['SB_UID', 'sbName', 'array', 'repfreq', 'band', 'RA', 'DEC',
                  'maxPWVC', 'minAR', 'maxAR', 'OT_BestConf', 'BestConf',
@@ -578,13 +579,13 @@ class WtoAlgorithm3(object):
                  'tsys_ot']],
             on=['SB_UID'], how='left')
 
-        self.master_wto_df = pd.merge(
-            self.master_wto_df,
+        self.master_dsa_df = pd.merge(
+            self.master_dsa_df,
             self.data.sb_status[['SB_UID', 'SB_STATE', 'EXECOUNT']],
             on=['SB_UID'], how='left')
 
         # noinspection PyUnusedLocal
-        sbs_uid_s = self.master_wto_df.SB_UID.unique()
+        sbs_uid_s = self.master_dsa_df.SB_UID.unique()
         h = ephem.Date(ephem.now() - 7.)
         # noinspection PyUnusedLocal
         hs = str(h)[:10].replace('/', '-')
@@ -603,18 +604,18 @@ class WtoAlgorithm3(object):
 
         qastatus['Observed'] = qastatus.Unset + qastatus.Pass
 
-        self.master_wto_df = pd.merge(
-            self.master_wto_df,
+        self.master_dsa_df = pd.merge(
+            self.master_dsa_df,
             qastatus[
                 ['Unset', 'Pass', 'Observed', 'SemiPass']],
             left_on='SB_UID', right_index=True, how='left')
-        self.master_wto_df.Unset.fillna(0, inplace=True)
-        self.master_wto_df.Pass.fillna(0, inplace=True)
-        self.master_wto_df.Observed.fillna(0, inplace=True)
-        self.master_wto_df.SemiPass.fillna(0, inplace=True)
+        self.master_dsa_df.Unset.fillna(0, inplace=True)
+        self.master_dsa_df.Pass.fillna(0, inplace=True)
+        self.master_dsa_df.Observed.fillna(0, inplace=True)
+        self.master_dsa_df.SemiPass.fillna(0, inplace=True)
 
-        self.master_wto_df = pd.merge(
-            self.master_wto_df,
+        self.master_dsa_df = pd.merge(
+            self.master_dsa_df,
             self.obs_param[
                 ['SB_UID', 'rise', 'set', 'note', 'C36_1', 'C36_2', 'C36_3',
                  'C36_4', 'C36_5', 'C36_6', 'C36_7', 'C36_8', 'twelve_good']],
@@ -722,7 +723,7 @@ class WtoAlgorithm3(object):
 
         # If C36 is selected
         else:
-            conf_file = (self.data._wto_path +
+            conf_file = (self.data._dsa_path +
                          'conf/%s.cfg' % array_name)
             ruv = rUV.compute_radialuv(conf_file)
             # noinspection PyTypeChecker

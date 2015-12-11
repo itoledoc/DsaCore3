@@ -13,3 +13,6 @@ The DSA API
 .. automodule:: DsaAlgorithm3
    :members:
 
+.. automodule:: DsaScorers3
+   :members:
+

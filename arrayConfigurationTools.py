@@ -59,7 +59,7 @@ import pickle
 from math import sqrt
 import pylab as pl
 
-home = os.environ['WTO']
+home = os.environ['DSA']
 
 
 class ArrayConfigurationCasaFile:

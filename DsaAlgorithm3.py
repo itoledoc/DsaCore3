@@ -744,7 +744,7 @@ class DsaAlgorithm3(object):
         :return:
         """
         ruv = ruv[(ruv >= blmin) & (ruv <= blmax)]
-        if len(ruv) < 300.:
+        if len(ruv) < 400.:
             return pd.Series(
                 [pd.np.NaN, 0],
                 index=['array_ar_cond', 'num_bl_use'])

@@ -557,7 +557,7 @@ class DsaAlgorithm3(object):
         self.master_dsa_df = pd.merge(
             self.data.projects.query('phase == "II"')[
                 ['OBSPROJECT_UID', 'CYCLE', 'CODE', 'DC_LETTER_GRADE',
-                 'PRJ_SCIENTIFIC_RANK', 'PRJ_STATUS']],
+                 'PRJ_SCIENTIFIC_RANK', 'PRJ_STATUS', 'EXEC']],
             self.data.sciencegoals.query('hasSB == True')[
                 ['OBSPROJECT_UID', 'SG_ID', 'OUS_ID', 'ARcor', 'LAScor',
                  'isTimeConstrained', 'isCalSpecial', 'isSpectralScan']],

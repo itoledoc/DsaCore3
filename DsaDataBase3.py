@@ -1112,3 +1112,13 @@ class DsaDatabase3(object):
             [minar[0], maxar[0], conf1, num12, sb_bl_num, sb_7m_num, sb_tp_num],
             index=["minAR", "maxAR", "BestConf", "two_12m", "SB_BL_num",
                    "SB_7m_num", "SB_TP_num"])
+
+    def get_ousstatus(self):
+
+        sql = str('SELECT * FROM ALMA.OBS_UNIT_SET_STATUS')
+        self._cursor.execute(sql)
+        ous = pd.DataFrame(
+                self._cursor.fetchall(),
+                columns=[rec[0] for rec in self._cursor.description])
+
+        return ous

@@ -539,8 +539,8 @@ class DsaAlgorithm3(object):
 
         self.inputs = pd.DataFrame(
             pd.np.array([lstdate0, lstdate1, lstdate2,
-                         sunsetlst_h - dt.timedelta(1), sunriselst_h,
-                         sunsetlst_h, sunriselst_h + dt.timedelta(1)]),
+                         sunsetlst_h, sunriselst_h,
+                         sunsetlst_h + dt.timedelta(1), sunriselst_h + dt.timedelta(1)]),
             index=['lst0', 'lst1', 'lst2', 'set1', 'rise1', 'set2', 'rise2'],
             columns=['2013.A']).transpose()
         self.inputs.ix['2013.1', :] = self.inputs.ix['2013.A', :]

@@ -350,7 +350,7 @@ class DsaAlgorithm3(object):
             self.master_dsa_df['blmin'] = self.master_dsa_df.apply(
                 lambda row: rUV.compute_bl(row['LAScor'], 100., las=True) if
                 ((row['LAScor'] > row['minAR']) and
-                 (row['LAScor'] > 3 * row['ARcor']))
+                 (row['LAScor'] > 5 * row['ARcor']))
                 else rUV.compute_bl(10., 100., las=True),
                 axis=1)
 
@@ -379,10 +379,10 @@ class DsaAlgorithm3(object):
 
                 if calc_blratio:
                     try:
-                        array_id = self.bl_arrays.iloc[0, 3]
+                        array_id = self.arrays.iloc[0, 3]
                     except AttributeError:
                         self._query_array()
-                        array_id = self.bl_arrays.iloc[0, 3]
+                        array_id = self.arrays.iloc[0, 3]
                     array_ar, num_bl, num_ant, ruv = self._get_bl_prop(array_id)
                     self.master_dsa_df[['array_ar_cond', 'num_bl_use']] = (
                         self.master_dsa_df.apply(
@@ -400,7 +400,7 @@ class DsaAlgorithm3(object):
             else:
                 if array_id == 'last':
                     self._query_array()
-                    array_id = self.bl_arrays.iloc[0, 3]
+                    array_id = self.arrays.iloc[0, 3]
 
                 ar, numbl, numant, ruv = self._get_bl_prop(array_id)
                 self.master_dsa_df[['array_ar_cond', 'num_bl_use']] = (
@@ -624,45 +624,94 @@ class DsaAlgorithm3(object):
                  'C36_4', 'C36_5', 'C36_6', 'C36_7', 'C36_8', 'twelve_good']],
             on=['SB_UID'], how='left')
 
-    def _query_array(self):
+    def _query_array(self, array_kind='TWELVE-M'):
         """
 
         """
-        bl = str(
-            "select se.SE_TIMESTAMP ts1, sa.SLOG_ATTR_VALUE av1, "
-            "se.SE_ARRAYNAME, se.SE_ID se1 from ALMA.SHIFTLOG_ENTRIES se, "
-            "ALMA.SLOG_ENTRY_ATTR sa "
-            "WHERE se.SE_TYPE=7 and se.SE_TIMESTAMP > SYSDATE - 1/1. "
-            "and sa.SLOG_SE_ID = se.SE_ID and sa.SLOG_ATTR_TYPE = 31 "
-            "and se.SE_LOCATION='OSF-AOS' and se.SE_CORRELATORTYPE = 'BL'")
-        # aca = str(
-        #     "select se.SE_TIMESTAMP ts1, sa.SLOG_ATTR_VALUE av1, "
-        #     "se.SE_ARRAYNAME, se.SE_ID se1, se.SE_ARRAYFAMILY, "
-        #     "se.SE_CORRELATORTYPE from ALMA.SHIFTLOG_ENTRIES se, "
-        #     "ALMA.SLOG_ENTRY_ATTR sa "
-        #     "WHERE se.SE_TYPE=7 and se.SE_TIMESTAMP > SYSDATE - 1/1. "
-        #     "and sa.SLOG_SE_ID = se.SE_ID and sa.SLOG_ATTR_TYPE = 31 "
-        #     "and se.SE_LOCATION='OSF-AOS'")
-        try:
-            self.data._cursor.execute(bl)
-            self._bl_arrays_info = pd.DataFrame(
-                self.data._cursor.fetchall(),
-                columns=[rec[0] for rec in self.data._cursor.description]
-            ).sort_values(by='TS1', ascending=False)
-        except ValueError:
-            self._bl_arrays_info = pd.DataFrame(
+
+        if array_kind == 'TWELVE-M':
+            sql = str(
+                "select se.SE_TIMESTAMP ts1, sa.SLOG_ATTR_VALUE av1, "
+                "se.SE_ARRAYNAME, se.SE_ID se1 from ALMA.SHIFTLOG_ENTRIES se, "
+                "ALMA.SLOG_ENTRY_ATTR sa "
+                "WHERE se.SE_TYPE=7 and se.SE_TIMESTAMP > SYSDATE - 1/1. "
+                "and sa.SLOG_SE_ID = se.SE_ID and sa.SLOG_ATTR_TYPE = 31 "
+                "and se.SE_LOCATION='OSF-AOS' and se.SE_CORRELATORTYPE = 'BL' "
+                "and se.SE_ARRAYFAMILY = '12 [m]'")
+            # aca = str(
+            #     "select se.SE_TIMESTAMP ts1, sa.SLOG_ATTR_VALUE av1, "
+            #     "se.SE_ARRAYNAME, se.SE_ID se1, se.SE_ARRAYFAMILY, "
+            #     "se.SE_CORRELATORTYPE from ALMA.SHIFTLOG_ENTRIES se, "
+            #     "ALMA.SLOG_ENTRY_ATTR sa "
+            #     "WHERE se.SE_TYPE=7 and se.SE_TIMESTAMP > SYSDATE - 1/1. "
+            #     "and sa.SLOG_SE_ID = se.SE_ID and sa.SLOG_ATTR_TYPE = 31 "
+            #     "and se.SE_LOCATION='OSF-AOS'")
+        elif array_kind == 'SEVEN-M':
+            sql = str(
+                "select se.SE_TIMESTAMP ts1, sa.SLOG_ATTR_VALUE av1, "
+                "se.SE_ARRAYNAME, se.SE_ID se1 from ALMA.SHIFTLOG_ENTRIES se, "
+                "ALMA.SLOG_ENTRY_ATTR sa "
+                "WHERE se.SE_TYPE=7 and se.SE_TIMESTAMP > SYSDATE - 1/1. "
+                "and sa.SLOG_SE_ID = se.SE_ID and sa.SLOG_ATTR_TYPE = 31 "
+                "and se.SE_LOCATION='OSF-AOS' and se.SE_CORRELATORTYPE = 'ACA' "
+                "and se.SE_ARRAYFAMILY = '7 [m]'")
+        elif array_kind == 'TP-Array':
+            sql = str(
+                "select se.SE_TIMESTAMP ts1, sa.SLOG_ATTR_VALUE av1, "
+                "se.SE_ARRAYNAME, se.SE_ID se1 from ALMA.SHIFTLOG_ENTRIES se, "
+                "ALMA.SLOG_ENTRY_ATTR sa "
+                "WHERE se.SE_TYPE=7 and se.SE_TIMESTAMP > SYSDATE - 1/1. "
+                "and sa.SLOG_SE_ID = se.SE_ID and sa.SLOG_ATTR_TYPE = 31 "
+                "and se.SE_LOCATION='OSF-AOS' and se.SE_CORRELATORTYPE = 'ACA' "
+                "and se.SE_ARRAYFAMILY = 'Total Power'")
+        else:
+            print("%s array kind is not valid. Use TWELVE-M, SEVEN-M, TP-Array")
+            return
+
+
+        self.data._cursor.execute(sql)
+        self._arrays_info = pd.DataFrame(
+            self.data._cursor.fetchall(),
+            columns=[rec[0] for rec in self.data._cursor.description]
+        ).sort_values(by='TS1', ascending=False)
+
+        if self._arrays_info.size == 0:
+            self._arrays_info = pd.DataFrame(
                 columns=pd.Index(
                     [u'TS1', u'AV1', u'SE_ARRAYNAME', u'SE1'], dtype='object'))
-            print("No BL arrays have been created in the last 6 hours.")
+            print("No %s arrays have been created in the last 6 hours." %
+                  array_kind)
+            self._group_arrays = None
+            self.arrays = None
+            return
 
-        self._group_bl_arrays = self._bl_arrays_info[
-            self._bl_arrays_info.AV1.str.startswith('CM') == False].copy()
+        if array_kind in ['TWELVE-M', 'TP-Array']:
+            self._group_arrays = self._arrays_info[
+                self._arrays_info.AV1.str.startswith('CM') == False].copy()
+        else:
+            self._group_arrays = self._arrays_info[
+                self._arrays_info.AV1.str.startswith('CM') == True].copy()
 
-        self.bl_arrays = self._group_bl_arrays.groupby(
-            'TS1').aggregate(
-            {'SE_ARRAYNAME': max, 'SE1': max,
-             'AV1': pd.np.count_nonzero}).query(
-            'AV1 > 30').reset_index().sort_values(by='TS1', ascending=False)
+        if array_kind == "TWELVE-M":
+            self.arrays = self._group_arrays.groupby(
+                'TS1').aggregate(
+                {'SE_ARRAYNAME': max, 'SE1': max,
+                 'AV1': pd.np.count_nonzero}).query(
+                'AV1 > 28').reset_index().sort_values(by='TS1', ascending=False)
+
+        elif array_kind == "SEVEN-M":
+            self.arrays = self._group_arrays.groupby(
+                'TS1').aggregate(
+                {'SE_ARRAYNAME': max, 'SE1': max,
+                 'AV1': pd.np.count_nonzero}).query(
+                'AV1 > 5').reset_index().sort_values(by='TS1', ascending=False)
+
+        else:
+            self.arrays = self._group_arrays.groupby(
+                'TS1').aggregate(
+                {'SE_ARRAYNAME': max, 'SE1': max,
+                 'AV1': pd.np.count_nonzero}).query(
+                'AV1 >= 1').reset_index().sort_values(by='TS1', ascending=False)
 
         # get latest pad info
 
@@ -703,9 +752,9 @@ class DsaAlgorithm3(object):
         """
         # In case a bl_array is selected
         if array_name not in CONF_LIM['minbase'].keys():
-            id1 = self._bl_arrays_info.query(
+            id1 = self._arrays_info.query(
                 'SE_ARRAYNAME == "%s"' % array_name).iloc[0].SE1
-            ap = self._bl_arrays_info.query(
+            ap = self._arrays_info.query(
                 'SE_ARRAYNAME == "%s" and SE1 == %d' % (array_name, id1)
             )[['AV1']]
 

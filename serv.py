@@ -79,7 +79,17 @@ class DSACoreService(xmlrpc.XMLRPC):
         dsa = Dsa.DsaAlgorithm3(self.data)
         dsa._query_array()
         a = dsa._get_bl_prop(array_id)
+
         return a[0]
+
+    def xmlrpc_get_arrays(self, array_kind):
+        dsa = Dsa.DsaAlgorithm3(self.data)
+        dsa._query_array(array_kind=array_kind)
+        if dsa.arrays is None:
+            return 'No Arrays'
+
+        return dsa.arrays.SE_ARRAYNAME.unique().tolist()
+
 
 
 if __name__ == '__main__':

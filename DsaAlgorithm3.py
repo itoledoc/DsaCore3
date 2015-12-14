@@ -378,11 +378,8 @@ class DsaAlgorithm3(object):
                 self.master_dsa_df['num_bl_use'] = 630.
 
                 if calc_blratio:
-                    try:
-                        array_id = self.arrays.iloc[0, 3]
-                    except AttributeError:
-                        self._query_array()
-                        array_id = self.arrays.iloc[0, 3]
+                    self._query_array()
+                    array_id = self.arrays.iloc[0, 3]
                     array_ar, num_bl, num_ant, ruv = self._get_bl_prop(array_id)
                     self.master_dsa_df[['array_ar_cond', 'num_bl_use']] = (
                         self.master_dsa_df.apply(
@@ -398,8 +395,8 @@ class DsaAlgorithm3(object):
                     )
 
             else:
+                self._query_array()
                 if array_id == 'last':
-                    self._query_array()
                     array_id = self.arrays.iloc[0, 3]
 
                 ar, numbl, numant, ruv = self._get_bl_prop(array_id)

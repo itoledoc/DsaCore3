@@ -91,7 +91,6 @@ class DSACoreService(xmlrpc.XMLRPC):
         return dsa.arrays.SE_ARRAYNAME.unique().tolist()
 
 
-
 if __name__ == '__main__':
     from twisted.internet import reactor
     r = DSACoreService()

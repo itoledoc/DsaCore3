@@ -45,18 +45,18 @@ def compute_bl(ar, freq, las=False):
     """
 
     try:
-        BLmax = 61800 / (freq * ar)
+        bl_length = 61800 / (freq * ar)
     except ZeroDivisionError:
-        BLmax = 0.
+        bl_length = 0.
 
-    if BLmax < 165.6 and not las:
-        BLmax = 165.6
+    if bl_length < 165.6 and not las:
+        bl_length = 165.6
 
     if las:
-        if BLmax > 248.3:
-            BLmax = 248.3
+        if bl_length > 248.3:
+            bl_length = 248.3
 
-    return (BLmax)
+    return bl_length
 
 
 def compute_array_ar(ruv):

@@ -348,7 +348,10 @@ class DsaAlgorithm3(object):
             self.master_dsa_df['blmax'] = self.master_dsa_df.apply(
                 lambda row: rUV.compute_bl(row['minAR'] / 0.8, 100.), axis=1)
             self.master_dsa_df['blmin'] = self.master_dsa_df.apply(
-                lambda row: rUV.compute_bl(row['LAScor'], 100., las=True),
+                lambda row: rUV.compute_bl(row['LAScor'], 100., las=True) if
+                ((row['LAScor'] > row['minAR']) and
+                 (row['LAScor'] > 3 * row['ARcor']))
+                else rUV.compute_bl(10., 100., las=True),
                 axis=1)
 
             if conf:
@@ -442,7 +445,7 @@ class DsaAlgorithm3(object):
         # Array Configuration selection (TP)
         else:
             if numant is None:
-                numant = 10.
+                numant = 2.
             self.selection_df['selConf'] = self.master_dsa_df.apply(
                 lambda x: True if x['array'] == "TP-Array" else
                 False, axis=1

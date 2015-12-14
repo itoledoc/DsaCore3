@@ -38,8 +38,12 @@ class DSACoreService(xmlrpc.XMLRPC):
 
         if conf == '' or array_kind != 'TWELVE-M':
             conf = None
+        else:
+            conf = [conf]
+
         if array_id == '' or array_kind != 'TWELVE-M':
             array_id = None
+
         if numant == 0 or array_kind == 'TWELVE-M':
             numant = None
 
@@ -54,7 +58,7 @@ class DSACoreService(xmlrpc.XMLRPC):
         dsa.write_ephem_coords()
         dsa.static_param()
         dsa.selector(array_kind=array_kind, minha=minha, maxha=maxha,
-                     conf=[conf], array_id=array_id,
+                     conf=conf, array_id=array_id,
                      pwv=0.5, horizon=horizon, numant=numant)
 
         scorer = dsa.master_dsa_df.apply(

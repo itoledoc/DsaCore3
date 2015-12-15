@@ -36,6 +36,8 @@ class DSACoreService(xmlrpc.XMLRPC):
                    pwv=0.5,
                    timestring=''):
 
+        dsa = Dsa.DsaAlgorithm3(self.data)
+
         if conf == '' or array_kind != 'TWELVE-M':
             conf = None
         else:
@@ -43,12 +45,13 @@ class DSACoreService(xmlrpc.XMLRPC):
 
         if array_id == '' or array_kind != 'TWELVE-M':
             array_id = None
+        elif array_id != '' and array_kind == 'TWELVE-M':
+            dsa._query_array(array_kind)
 
         if numant == 0 or array_kind == 'TWELVE-M':
             numant = None
 
-        self.data.update_status()
-        dsa = Dsa.DsaAlgorithm3(self.data)
+        self.data.update_status() #to be put on thread
 
         if timestring != '':
             dsa.set_time(timestring)  # YYYY-MM-DD HH:mm:SS
@@ -74,13 +77,17 @@ class DSACoreService(xmlrpc.XMLRPC):
 
         return fin.to_json(orient='index')
 
-    def xlmrpc_get_ar(self, array_id):
-
+    def xmlrpc_get_ar(self, array_id):
+        '''
+        Only works for 12-m arrays
+        :param array_id:
+        :return:
+        '''
         dsa = Dsa.DsaAlgorithm3(self.data)
         dsa._query_array()
         a = dsa._get_bl_prop(array_id)
 
-        return a[0]
+        return float(a[0])
 
     def xmlrpc_get_arrays(self, array_kind):
         dsa = Dsa.DsaAlgorithm3(self.data)

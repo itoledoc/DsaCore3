@@ -68,7 +68,7 @@ print('stat param written')
 
 dsa.selector(
     minha=-4., maxha=4., letterg=['A', 'B', 'C'],
-    conf='C36-1', pwv=pwv)
+    conf=['C36-1'], pwv=pwv)
 dsa.selection_df['PWV now'] = pwv
 dsa.selection_df['PWV now date'] = (
     pd.read_sql('pwv_data', engine).date.values[0] + ' ' +

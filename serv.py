@@ -71,8 +71,12 @@ class DSACoreService(xmlrpc.XMLRPC):
                 x['EXECOUNT'], x['PRJ_SCIENTIFIC_RANK'], x['DC_LETTER_GRADE'],
                 x['CYCLE'], x['HA']), axis=1)
 
-        fin = pd.merge(pd.merge(dsa.master_dsa_df, dsa.selection_df, on='SB_UID'),
-                       scorer.reset_index(), on='SB_UID').set_index(
+        fin = pd.merge(
+                pd.merge(
+                    dsa.master_dsa_df[
+                        dsa.selection_df.ix[:, 1:10].sum(axis=1) == 9],
+                    dsa.selection_df, on='SB_UID'),
+                scorer.reset_index(), on='SB_UID').set_index(
             'SB_UID', drop=False).sort('Score', ascending=0)
 
         return fin.to_json(orient='index')

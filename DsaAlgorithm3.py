@@ -296,6 +296,10 @@ class DsaAlgorithm3(object):
             lambda x: 'SEVEN-M' if x['array'] == "ACA" else
             x['array'], axis=1
         )
+        self.master_dsa_df['isToo'] = self.master_dsa_df.apply(
+            lambda x: True if str(x['CODE']).endswith('.T') else
+            False, axis=1
+        )
         self.selection_df = self.master_dsa_df[['SB_UID']].copy()
 
         # select array kind

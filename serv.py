@@ -74,7 +74,7 @@ class DSACoreService(xmlrpc.XMLRPC):
         fin = pd.merge(
                 pd.merge(
                     dsa.master_dsa_df[
-                        dsa.selection_df.ix[:, 1:10].sum(axis=1) == 9],
+                        dsa.selection_df.ix[:, 1:11].sum(axis=1) == 10],
                     dsa.selection_df, on='SB_UID'),
                 scorer.reset_index(), on='SB_UID').set_index(
             'SB_UID', drop=False).sort('Score', ascending=0)

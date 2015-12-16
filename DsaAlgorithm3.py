@@ -508,6 +508,11 @@ class DsaAlgorithm3(object):
             lambda x: 1 / (x['bl_ratio'] * x['tsys_ratio']) if
             (x['bl_ratio'] * x['tsys_ratio']) <= 100. else 0., axis=1)
 
+        self.selection_df['selCond'] = self.master_dsa_df.apply(
+            lambda x: True if x['Exec. Frac'] >= 0.5 else False,
+            axis=1
+        )
+
         self.master_dsa_df.set_index('SB_UID', drop=False, inplace=True)
         self.selection_df.set_index('SB_UID', drop=False, inplace=True)
 

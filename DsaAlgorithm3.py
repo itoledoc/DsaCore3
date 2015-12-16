@@ -476,7 +476,10 @@ class DsaAlgorithm3(object):
         self.master_dsa_df.ix[corr_el, 'HA'] = -24.
 
         self.selection_df['selElev'] = (
-            self.master_dsa_df.elev >= horizon)
+            (self.master_dsa_df.elev >= horizon) &
+            (self.master_dsa_df.RA != 0) &
+            (self.master_dsa_df.DEC != 0)
+        )
 
         self.selection_df['selHA'] = (
             (self.master_dsa_df.HA >= minha) &

@@ -488,7 +488,7 @@ class DsaAlgorithm3(object):
         ind1 = pd.np.around(self.master_dsa_df.repfreq, decimals=1)
 
         pwv_str = (str(int(pwv / 0.05) * 0.05 +
-                   (0.05 if (pwv % 0.05) > 0.02 else 0.)))
+                   (0.05 if (int(pwv * 100) % 5) > 2 else 0.)))
 
         self.master_dsa_df['transmission'] = self.pwvdata.ix[
             ind1, pwv_str].values

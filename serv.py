@@ -62,7 +62,7 @@ class DSACoreService(xmlrpc.XMLRPC):
         dsa.static_param()
         dsa.selector(array_kind=array_kind, minha=minha, maxha=maxha,
                      conf=conf, array_id=array_id,
-                     pwv=0.5, horizon=horizon, numant=numant)
+                     pwv=pwv, horizon=horizon, numant=numant)
 
         scorer = dsa.master_dsa_df.apply(
             lambda x: DsaScore.calc_all_scores(
@@ -151,7 +151,7 @@ class DSACoreService(xmlrpc.XMLRPC):
         dsa.static_param()
         dsa.selector(array_kind=array_kind, minha=minha, maxha=maxha,
                      conf=conf, array_id=array_id,
-                     pwv=0.5, horizon=horizon, numant=numant)
+                     pwv=pwv, horizon=horizon, numant=numant)
 
         scorer = dsa.master_dsa_df.apply(
             lambda x: DsaScore.calc_all_scores(

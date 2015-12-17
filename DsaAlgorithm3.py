@@ -746,7 +746,8 @@ class DsaAlgorithm3(object):
             print("No shiftlogs have been created in the last 6 hours.")
 
         last_shift = self._shifts[
-            self._shifts.SE1 == self._shifts.iloc[0].SE1].copy()
+            self._shifts.SE1 == self._shifts.iloc[0].SE1].copy(
+            ).drop_duplicates('AV1')
         last_shift['AV1'] = last_shift.AV1.str.split(':')
         ante = last_shift.apply(lambda x: x['AV1'][0], axis=1)
         pads = last_shift.apply(lambda x: x['AV1'][1], axis=1)

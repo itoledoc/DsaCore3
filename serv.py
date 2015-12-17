@@ -15,7 +15,7 @@ engine = create_engine('postgresql://wto:wto2020@dmg02.sco.alma.cl:5432/aidadb')
 
 class RefreshThread(threading.Thread):
 
-    def __init__(self, dsa_core_instance, sleep_time=120):
+    def __init__(self, dsa_core_instance, sleep_time=1800):
         """
         :param dsa_core_instance: DSACoreService
         :return:
@@ -33,7 +33,7 @@ class RefreshThread(threading.Thread):
                 data = Data.DsaDatabase3(refresh_apdm=True, allc2=False, loadp1=False)
                 with self.__dsa.lock:
                     self.__dsa.data = data
-                    self.__dsa.data.update_status()
+#                    self.__dsa.data.update_status()
                 print "Refresh done. Waiting", self.__wait_time, "seconds until next refresh"
             except Exception as ex:
                 print "Problem refreshing the data. Cause:", ex
@@ -89,7 +89,7 @@ class DSACoreService(xmlrpc.XMLRPC):
         if numant == 0 or array_kind == 'TWELVE-M':
             numant = None
 
-#        self.data.update_status() #to be put on thread
+        self.data.update_status() #to be put on thread
 
         if timestring != '':
             dsa.set_time(timestring)  # YYYY-MM-DD HH:mm:SS
@@ -183,7 +183,7 @@ class DSACoreService(xmlrpc.XMLRPC):
         if numant == 0 or array_kind == 'TWELVE-M':
             numant = None
 
-#        self.data.update_status() #to be put on thread
+        self.data.update_status() #to be put on thread
 
         if timestring != '':
             dsa.set_time(timestring)  # YYYY-MM-DD HH:mm:SS

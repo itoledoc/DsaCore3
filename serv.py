@@ -7,6 +7,8 @@ import pandas as pd
 from twisted.web import xmlrpc, server
 from astropy.utils.data import download_file
 from astropy.utils import iers
+from sqlalchemy import create_engine
+engine = create_engine('postgresql://wto:wto2020@dmg02.sco.alma.cl:5432/aidadb')
 
 
 class DSACoreService(xmlrpc.XMLRPC):
@@ -16,6 +18,8 @@ class DSACoreService(xmlrpc.XMLRPC):
 
     def __init__(self):
         xmlrpc.XMLRPC.__init__(self)
+        self.engine = create_engine(
+                'postgresql://wto:wto2020@dmg02.sco.alma.cl:5432/aidadb')
 
         iers.IERS.iers_table = iers.IERS_A.open(
             download_file(iers.IERS_A_URL, cache=True))
@@ -169,6 +173,12 @@ class DSACoreService(xmlrpc.XMLRPC):
 
         return fin.to_json(orient='index')
 
+    def xmlrpc_get_pwv(self):
+
+        pwvd = pd.read_sql('pwv_data', engine)
+        pwv = pwvd.pwv.values[0]
+        print pwvd.date.values[0] + ' ' + pwvd.time.values[0]
+        return float(pwv)
 
 if __name__ == '__main__':
     from twisted.internet import reactor

@@ -296,6 +296,10 @@ class DsaAlgorithm3(object):
             lambda x: 'SEVEN-M' if x['array'] == "ACA" else
             x['array'], axis=1
         )
+        self.master_dsa_df['isToo'] = self.master_dsa_df.apply(
+            lambda x: True if str(x['CODE']).endswith('.T') else
+            False, axis=1
+        )
         self.selection_df = self.master_dsa_df[['SB_UID']].copy()
 
         # select array kind
@@ -476,7 +480,10 @@ class DsaAlgorithm3(object):
         self.master_dsa_df.ix[corr_el, 'HA'] = -24.
 
         self.selection_df['selElev'] = (
-            self.master_dsa_df.elev >= horizon)
+            (self.master_dsa_df.elev >= horizon) &
+            (self.master_dsa_df.RA != 0) &
+            (self.master_dsa_df.DEC != 0)
+        )
 
         self.selection_df['selHA'] = (
             (self.master_dsa_df.HA >= minha) &
@@ -488,7 +495,7 @@ class DsaAlgorithm3(object):
         ind1 = pd.np.around(self.master_dsa_df.repfreq, decimals=1)
 
         pwv_str = (str(int(pwv / 0.05) * 0.05 +
-                   (0.05 if (pwv % 0.05) > 0.02 else 0.)))
+                   (0.05 if (int(pwv * 100) % 5) > 2 else 0.)))
 
         self.master_dsa_df['transmission'] = self.pwvdata.ix[
             ind1, pwv_str].values
@@ -507,6 +514,11 @@ class DsaAlgorithm3(object):
         self.master_dsa_df['Exec. Frac'] = self.master_dsa_df.apply(
             lambda x: 1 / (x['bl_ratio'] * x['tsys_ratio']) if
             (x['bl_ratio'] * x['tsys_ratio']) <= 100. else 0., axis=1)
+
+        self.selection_df['selCond'] = self.master_dsa_df.apply(
+            lambda x: True if x['Exec. Frac'] >= 0.5 else False,
+            axis=1
+        )
 
         self.master_dsa_df.set_index('SB_UID', drop=False, inplace=True)
         self.selection_df.set_index('SB_UID', drop=False, inplace=True)

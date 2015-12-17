@@ -129,8 +129,8 @@ def calc_ha_scorer(ha):
 def calc_total_score(scores, weights=None):
 
     if not weights:
-        weights = {'cond': 0.35, 'array': 0.05, 'sbcompletion': 0.20,
-                   'executive': 0.05, 'sciencerank': 0.05, 'cyclegrade': 0.20,
+        weights = {'cond': 0.35, 'array': 0.1, 'sbcompletion': 0.15,
+                   'executive': 0.00, 'sciencerank': 0.10, 'cyclegrade': 0.20,
                    'ha': 0.10}
     score = 0.
     keys = weights.keys()

@@ -30,13 +30,11 @@ class RefreshThread(threading.Thread):
         while not self.stop:
             try:
                 print "Staring refresh..."
-                data = Data.DsaDatabase3(
-                        refresh_apdm=True, allc2=False, loadp1=False)
+                data = Data.DsaDatabase3(refresh_apdm=True, allc2=False, loadp1=False)
                 with self.__dsa.lock:
                     self.__dsa.data = data
 #                    self.__dsa.data.update_status()
-                print("Refresh done. Waiting", self.__wait_time,
-                      "seconds until next refresh")
+                print "Refresh done. Waiting", self.__wait_time, "seconds until next refresh"
             except Exception as ex:
                 print "Problem refreshing the data. Cause:", ex
                 print "Waiting", self.__wait_time, "seconds until next refresh"
@@ -58,8 +56,7 @@ class DSACoreService(xmlrpc.XMLRPC):
             download_file(iers.IERS_A_URL, cache=True))
         self.lock = threading.Lock()
         with self.lock:
-            self.data = Data.DsaDatabase3(
-                    refresh_apdm=True, allc2=False, loadp1=False)
+            self.data = Data.DsaDatabase3(refresh_apdm=True, allc2=False, loadp1=False)
 
     def xmlrpc_run(self,
                    array_kind='TWELVE-M',
@@ -92,7 +89,7 @@ class DSACoreService(xmlrpc.XMLRPC):
         if numant == 0 or array_kind == 'TWELVE-M':
             numant = None
 
-        self.data.update_status()  # to be put on thread
+        self.data.update_status() #to be put on thread
 
         if timestring != '':
             dsa.set_time(timestring)  # YYYY-MM-DD HH:mm:SS
@@ -108,11 +105,10 @@ class DSACoreService(xmlrpc.XMLRPC):
 
         scorer = dsa.master_dsa_df.apply(
             lambda x: DsaScore.calc_all_scores(
-                pwv, x['maxPWVC'], x['Exec. Frac'], x['sbName'], x['array'],
-                x['ARcor'], x['DEC'], x['array_ar_cond'], x['minAR'],
-                x['maxAR'], x['Observed'], x['EXECOUNT'],
-                x['PRJ_SCIENTIFIC_RANK'], x['DC_LETTER_GRADE'], x['CYCLE'],
-                x['HA']), axis=1)
+                pwv, x['maxPWVC'], x['Exec. Frac'], x['sbName'], x['array'], x['ARcor'],
+                x['DEC'], x['array_ar_cond'], x['minAR'], x['maxAR'], x['Observed'],
+                x['EXECOUNT'], x['PRJ_SCIENTIFIC_RANK'], x['DC_LETTER_GRADE'],
+                x['CYCLE'], x['HA']), axis=1)
 
         fin = pd.merge(
                 pd.merge(
@@ -125,19 +121,17 @@ class DSACoreService(xmlrpc.XMLRPC):
         return fin.to_json(orient='index')
 
     def xmlrpc_get_ar(self, array_id):
-        """
-        Returns the angular resolution and number of antennae
+        '''
+        Only works for 12-m arrays
         :param array_id:
         :return:
-        """
-
+        '''
         with self.lock:
             dsa = Dsa.DsaAlgorithm3(self.data)
-
         dsa._query_array()
         a = dsa._get_bl_prop(array_id)
 
-        return float(a[0]), int(a[2])
+        return float(a[0])
 
     def xmlrpc_get_arrays(self, array_kind):
         with self.lock:
@@ -205,11 +199,10 @@ class DSACoreService(xmlrpc.XMLRPC):
 
         scorer = dsa.master_dsa_df.apply(
             lambda x: DsaScore.calc_all_scores(
-                pwv, x['maxPWVC'], x['Exec. Frac'], x['sbName'], x['array'],
-                x['ARcor'], x['DEC'], x['array_ar_cond'], x['minAR'],
-                x['maxAR'], x['Observed'], x['EXECOUNT'],
-                x['PRJ_SCIENTIFIC_RANK'], x['DC_LETTER_GRADE'], x['CYCLE'],
-                x['HA']), axis=1)
+                pwv, x['maxPWVC'], x['Exec. Frac'], x['sbName'], x['array'], x['ARcor'],
+                x['DEC'], x['array_ar_cond'], x['minAR'], x['maxAR'], x['Observed'],
+                x['EXECOUNT'], x['PRJ_SCIENTIFIC_RANK'], x['DC_LETTER_GRADE'],
+                x['CYCLE'], x['HA']), axis=1)
 
         fin = pd.merge(
                 pd.merge(
@@ -233,6 +226,6 @@ if __name__ == '__main__':
     thread = RefreshThread(r)
     thread.daemon = True
     thread.start()
-    reactor.listenTCP(7080, server.Site(r))
+    reactor.listenTCP(7081, server.Site(r))
     reactor.run()
 

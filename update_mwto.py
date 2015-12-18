@@ -12,7 +12,8 @@ from astropy.utils import iers
 iers.IERS.iers_table = iers.IERS_A.open(
     download_file(iers.IERS_A_URL, cache=True))
 
-engine = create_engine('postgresql://dsacore:dsa2020@tableau.alma.cl:5432/dsa_data')
+engine = create_engine(
+        'postgresql://dsacore:dsa2020@tableau.alma.cl:5432/dsa_data')
 refr = False
 if time.time() - os.path.getmtime('/users/aod/.mwto/') > 3600.:
     refr = True
@@ -64,6 +65,7 @@ print('master written')
 dsa.obs_param.to_sql('staticparam_wto_test', engine, index_label='SBUID',
                      if_exists='replace')
 print('stat param written')
+
 # C36-1 default
 
 dsa.selector(

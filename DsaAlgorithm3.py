@@ -770,6 +770,12 @@ class DsaAlgorithm3(object):
 
             ap.rename(columns={'AV1': 'antenna'}, inplace=True)
             ap = ap[ap.antenna.str.contains('CM') == False]
+            if len(ap) == 0:
+                ap = self._arrays_info.query(
+                        'SE_ARRAYNAME == "%s" and SE1 == %d' %
+                        (array_name, id1))[['AV1']]
+                ap.rename(columns={'AV1': 'antenna'}, inplace=True)
+
             conf = pd.merge(ap, self._ante_pad,
                             left_on='antenna', right_on='antenna')[
                 ['pad', 'antenna']]

@@ -174,6 +174,7 @@ class DSACoreService(xmlrpc.XMLRPC):
                    timestring=''):
 
         self.lock.acquire()
+        self.data.update_status()  # to be put on thread
         dsa = Dsa.DsaAlgorithm3(self.data)
         self.lock.release()
 
@@ -190,7 +191,7 @@ class DSACoreService(xmlrpc.XMLRPC):
         if numant == 0 or array_kind == 'TWELVE-M':
             numant = None
 
-        self.data.update_status() #to be put on thread
+
 
         if timestring != '':
             dsa.set_time(timestring)  # YYYY-MM-DD HH:mm:SS

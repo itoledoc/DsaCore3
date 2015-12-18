@@ -124,8 +124,10 @@ def calc_cycle_grade_score(grade, cycle):
 
 def calc_ha_scorer(ha):
 
-    sb_ha_scorer = ((math.cos(math.radians((ha + 1.) * 15.)) - 0.3) /
-                    (1 - 0.3)) * 10.
+    sb_ha_scorer = ((math.cos(math.radians((ha + 0.5) * 15.)) - 0.55) /
+                    (1 - 0.55)) * 10.
+    if sb_ha_scorer < 0:
+        sb_ha_scorer = 0
 
     return sb_ha_scorer
 

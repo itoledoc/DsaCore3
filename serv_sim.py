@@ -14,7 +14,6 @@ from sqlalchemy import create_engine
 engine = create_engine('postgresql://wto:wto2020@dmg02.sco.alma.cl:5432/aidadb')
 
 
-
 class DSACoreService(xmlrpc.XMLRPC):
     """
     A service to start as XML RPC interface to run the DSA Core
@@ -28,7 +27,7 @@ class DSACoreService(xmlrpc.XMLRPC):
         iers.IERS.iers_table = iers.IERS_A.open(
             download_file(iers.IERS_A_URL, cache=True))
         self.data = Data.DsaDatabase3(
-                path='/home/itoledo/sim',
+                path='/home/itoledo/sim/',
                 refresh_apdm=True, allc2=False, loadp1=False)
         self.dsa = Dsa.DsaAlgorithm3(self.data)
 
@@ -177,7 +176,6 @@ class DSACoreService(xmlrpc.XMLRPC):
             'SB_UID', drop=False).sort('Score', ascending=0)
 
         return fin.to_json(orient='index')
-
 
 
 if __name__ == '__main__':

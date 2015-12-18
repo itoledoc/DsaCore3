@@ -22,7 +22,7 @@ def simulate_day(
     if not pwv:
         pwvf = pd.read_csv(
                 'http://www.eso.org/gen-fac/pubs/astclim/forecast/gfs/'
-                'APEX/forecast/text/2015/gfs_pwv_for.txt', header=None,
+                'APEX/forecast/text/gfs_pwv_for.txt', header=None,
                 names=['date', 'hourStart', 'offset', 'pwv'],
                 delim_whitespace=True)
     else:
@@ -83,6 +83,8 @@ def simulate_day(
             sb_uid = r2.SB_UID.values[0]
             r = pd.concat([r, r2])
         client.add_observation(str(sb_uid))
+        if est_time > 3:
+            est_time = 3.
         time_sim += dt.timedelta(hours=est_time)
 
     return r

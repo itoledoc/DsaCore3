@@ -137,7 +137,8 @@ def calc_total_score(scores, weights=None):
                    'executive': 0.00, 'sciencerank': 0.10, 'cyclegrade': 0.20,
                    'ha': 0.10}
     score = 0.
-    keys = weights.keys()
+    keys = ['cond', 'array', 'sbcompletion', 'executive', 'sciencerank',
+            'cyclegrade', 'ha']
     for n, s in enumerate(scores):
         score += weights[keys[n]] * s
 

@@ -89,7 +89,11 @@ def calc_array_score(name, array_kind, ar, dec, array_ar_sb, minar, maxar):
 
 def calc_sb_completion(observed, execount):
 
-    sb_completion = observed / execount
+    try:
+        sb_completion = observed / execount
+    except ZeroDivisionError:
+        sb_completion = 1.
+
     return 6 * sb_completion + 4.
 
 

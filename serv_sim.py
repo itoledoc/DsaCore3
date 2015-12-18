@@ -5,6 +5,7 @@ import DsaScorers3 as DsaScore
 import pandas as pd
 import threading
 import time
+import datetime as dt
 
 from twisted.web import xmlrpc, server
 from astropy.utils.data import download_file
@@ -12,34 +13,6 @@ from astropy.utils import iers
 from sqlalchemy import create_engine
 engine = create_engine('postgresql://wto:wto2020@dmg02.sco.alma.cl:5432/aidadb')
 
-
-class RefreshThread(threading.Thread):
-
-    def __init__(self, dsa_core_instance, sleep_time=1800):
-        """
-        :param dsa_core_instance: DSACoreService
-        :return:
-        """
-        threading.Thread.__init__(self, name="APDM refreshing thread")
-        self.__dsa = dsa_core_instance
-        self.stop = False
-        self.__wait_time = sleep_time
-
-    def run(self):
-        print "Starting refreshing thread"
-        while not self.stop:
-            try:
-                print "Staring refresh..."
-                data = Data.DsaDatabase3(refresh_apdm=True, allc2=False, loadp1=False)
-                with self.__dsa.lock:
-                    self.__dsa.data = data
-#                    self.__dsa.data.update_status()
-                print "Refresh done. Waiting", self.__wait_time, "seconds until next refresh"
-            except Exception as ex:
-                print "Problem refreshing the data. Cause:", ex
-                print "Waiting", self.__wait_time, "seconds until next refresh"
-
-            time.sleep(self.__wait_time)
 
 
 class DSACoreService(xmlrpc.XMLRPC):
@@ -54,9 +27,10 @@ class DSACoreService(xmlrpc.XMLRPC):
 
         iers.IERS.iers_table = iers.IERS_A.open(
             download_file(iers.IERS_A_URL, cache=True))
-        self.lock = threading.Lock()
-        with self.lock:
-            self.data = Data.DsaDatabase3(refresh_apdm=True, allc2=False, loadp1=False)
+        self.data = Data.DsaDatabase3(
+                path='/home/itoledo/sim',
+                refresh_apdm=True, allc2=False, loadp1=False)
+        self.dsa = Dsa.DsaAlgorithm3(self.data)
 
     def xmlrpc_run(self,
                    array_kind='TWELVE-M',
@@ -71,10 +45,8 @@ class DSACoreService(xmlrpc.XMLRPC):
                    minha=-3.,
                    maxha=3.,
                    pwv=0.5,
-                   timestring=''):
-
-        with self.lock:
-            dsa = Dsa.DsaAlgorithm3(self.data)
+                   timestring='',
+                   update=False):
 
         if conf == '' or array_kind != 'TWELVE-M':
             conf = None
@@ -84,26 +56,27 @@ class DSACoreService(xmlrpc.XMLRPC):
         if array_id == '' or array_kind != 'TWELVE-M':
             array_id = None
         elif array_id != '' and array_kind == 'TWELVE-M':
-            dsa._query_array(array_kind)
+            self.dsa._query_array(array_kind)
 
         if numant == 0 or array_kind == 'TWELVE-M':
             numant = None
 
-        self.data.update_status() #to be put on thread
-
         if timestring != '':
-            dsa.set_time(timestring)  # YYYY-MM-DD HH:mm:SS
+            self.dsa.set_time(timestring)  # YYYY-MM-DD HH:mm:SS
         else:
-            dsa.set_time_now()
+            self.dsa.set_time_now()
 
-        dsa.write_ephem_coords()
-        dsa.static_param()
-        dsa.selector(array_kind=array_kind, minha=minha, maxha=maxha,
-                     conf=conf, array_id=array_id,
-                     pwv=pwv, horizon=horizon, numant=numant,
-                     bands=bands)
+        if update:
+            self.dsa.data.update_status()
+            self.dsa.write_ephem_coords()
+            self.dsa.static_param()
 
-        scorer = dsa.master_dsa_df.apply(
+        self.dsa.selector(array_kind=array_kind, minha=minha, maxha=maxha,
+                          conf=conf, array_id=array_id,
+                          pwv=pwv, horizon=horizon, numant=numant,
+                          bands=bands)
+
+        scorer = self.dsa.master_dsa_df.apply(
             lambda x: DsaScore.calc_all_scores(
                 pwv, x['maxPWVC'], x['Exec. Frac'], x['sbName'], x['array'], x['ARcor'],
                 x['DEC'], x['array_ar_cond'], x['minAR'], x['maxAR'], x['Observed'],
@@ -112,9 +85,9 @@ class DSACoreService(xmlrpc.XMLRPC):
 
         fin = pd.merge(
                 pd.merge(
-                    dsa.master_dsa_df[
-                        dsa.selection_df.ix[:, 1:11].sum(axis=1) == 10],
-                    dsa.selection_df, on='SB_UID'),
+                    self.dsa.master_dsa_df[
+                        self.dsa.selection_df.ix[:, 1:11].sum(axis=1) == 10],
+                    self.dsa.selection_df, on='SB_UID'),
                 scorer.reset_index(), on='SB_UID').set_index(
             'SB_UID', drop=False).sort('Score', ascending=0)
 
@@ -126,30 +99,26 @@ class DSACoreService(xmlrpc.XMLRPC):
         :param array_id:
         :return:
         '''
-        with self.lock:
-            dsa = Dsa.DsaAlgorithm3(self.data)
-        dsa._query_array()
-        a = dsa._get_bl_prop(array_id)
+
+        self.dsa._query_array()
+        a = self.dsa._get_bl_prop(array_id)
 
         return float(a[0])
 
+    def xmlrpc_add_observation(self, sbuid):
+        # needs fixing to avoid lost of info
+        self.dsa.data.sb_status.ix[sbuid, 'EXECOUNT'] -= 1
+        if self.dsa.data.sb_status.ix[sbuid, 'EXECOUNT'] == 0:
+            self.dsa.data.sb_status.ix[sbuid, 'SB_STATE'] = 'FullyObserved'
+        return ''
+
     def xmlrpc_get_arrays(self, array_kind):
-        with self.lock:
-            dsa = Dsa.DsaAlgorithm3(self.data)
-        dsa._query_array(array_kind=array_kind)
-        if dsa.arrays is None:
+
+        self.dsa._query_array(array_kind=array_kind)
+        if self.dsa.arrays is None:
             return 'No Arrays'
 
-        return dsa.arrays.SE_ARRAYNAME.unique().tolist()
-
-    def xmlrpc_update_data(self):
-        with self.lock:
-            self.data = Data.DsaDatabase3(
-                    refresh_apdm=True, allc2=False, loadp1=False)
-
-    def xlmrpc_update_apdm(self, obsproject_uid):
-        with self.lock:
-            self.data._update_apdm(obsproject_uid)
+        return self.dsa.arrays.SE_ARRAYNAME.unique().tolist()
 
     def xmlrpc_run_full(self,
                    array_kind='TWELVE-M',
@@ -166,10 +135,6 @@ class DSACoreService(xmlrpc.XMLRPC):
                    pwv=0.5,
                    timestring=''):
 
-        self.lock.acquire()
-        dsa = Dsa.DsaAlgorithm3(self.data)
-        self.lock.release()
-
         if conf == '' or array_kind != 'TWELVE-M':
             conf = None
         else:
@@ -178,26 +143,26 @@ class DSACoreService(xmlrpc.XMLRPC):
         if array_id == '' or array_kind != 'TWELVE-M':
             array_id = None
         elif array_id != '' and array_kind == 'TWELVE-M':
-            dsa._query_array(array_kind)
+            self.dsa._query_array(array_kind)
 
         if numant == 0 or array_kind == 'TWELVE-M':
             numant = None
 
-        self.data.update_status() #to be put on thread
+        self.dsa.data.update_status()  # to be put on thread
 
         if timestring != '':
-            dsa.set_time(timestring)  # YYYY-MM-DD HH:mm:SS
+            self.dsa.set_time(timestring)  # YYYY-MM-DD HH:mm:SS
         else:
-            dsa.set_time_now()
+            self.dsa.set_time_now()
 
-        dsa.write_ephem_coords()
-        dsa.static_param()
-        dsa.selector(array_kind=array_kind, minha=minha, maxha=maxha,
+        self.dsa.write_ephem_coords()
+        self.dsa.static_param()
+        self.dsa.selector(array_kind=array_kind, minha=minha, maxha=maxha,
                      conf=conf, array_id=array_id,
                      pwv=pwv, horizon=horizon, numant=numant,
                      bands=bands)
 
-        scorer = dsa.master_dsa_df.apply(
+        scorer = self.dsa.master_dsa_df.apply(
             lambda x: DsaScore.calc_all_scores(
                 pwv, x['maxPWVC'], x['Exec. Frac'], x['sbName'], x['array'], x['ARcor'],
                 x['DEC'], x['array_ar_cond'], x['minAR'], x['maxAR'], x['Observed'],
@@ -206,26 +171,18 @@ class DSACoreService(xmlrpc.XMLRPC):
 
         fin = pd.merge(
                 pd.merge(
-                    dsa.master_dsa_df,
-                    dsa.selection_df, on='SB_UID'),
+                    self.dsa.master_dsa_df,
+                    self.dsa.selection_df, on='SB_UID'),
                 scorer.reset_index(), on='SB_UID').set_index(
             'SB_UID', drop=False).sort('Score', ascending=0)
 
         return fin.to_json(orient='index')
 
-    def xmlrpc_get_pwv(self):
 
-        pwvd = pd.read_sql('pwv_data', engine)
-        pwv = pwvd.pwv.values[0]
-        print pwvd.date.values[0] + ' ' + pwvd.time.values[0]
-        return float(pwv)
 
 if __name__ == '__main__':
     from twisted.internet import reactor
     r = DSACoreService()
-    thread = RefreshThread(r)
-    thread.daemon = True
-    thread.start()
     reactor.listenTCP(7081, server.Site(r))
     reactor.run()
 

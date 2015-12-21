@@ -68,4 +68,11 @@ def compute_array_ar(ruv):
     return 61800 / (100. * linea)
 
 
+def compute_array_ar_check(ruv):
+    x = np.linspace(0, ruv.max() + 100., 100)
+    param = rayleigh.fit(ruv)
+    pdf_fitted = rayleigh.pdf(x, loc=param[0], scale=param[1])
+    interval = rayleigh.interval(0.992, loc=param[0], scale=param[1])
+    linea = min(interval[1], ruv.max())
+    return 61800 / (100. * linea), pdf_fitted, param, ruv, interval, x
 

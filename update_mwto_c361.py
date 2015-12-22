@@ -51,7 +51,7 @@ dsa.master_dsa_df['allconfs'] = dsa.obs_param.apply(
         [str(x['C36_1']), str(x['C36_2']), str(x['C36_3']), str(x['C36_4']),
          str(x['C36_5']), str(x['C36_7']), str(x['C36_8'])]), axis=1)
 
-sel_sb = dsa.master_dsa_df.query('C36_1 == "C36-1"').unique()
+sel_sb = dsa.master_dsa_df.query('C36_1 == "C36-1"').SB_UID.unique()
 
 scorer.query('SB_UID in @sel_sb').to_sql('scorer_wto_c361', engine, index_label='SBUID',
               if_exists='replace')

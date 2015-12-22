@@ -38,7 +38,7 @@ dsa.selection_df['PWV now date'] = (
     pd.read_sql('pwv_data', engine).date.values[0] + ' ' +
     pd.read_sql('pwv_data', engine).time.values[0])
 dsa.selection_df['date'] = str(dsa._ALMA_ephem.date)
-dsa.selection_df['arrayname'] = dsa.arrays.iloc[0, 3]
+dsa.selection_df['arrayname'] = 'C36-2'
 scorer = dsa.master_dsa_df.apply(
     lambda x: WtoScor.calc_all_scores(
         pwv, x['maxPWVC'], x['Exec. Frac'], x['sbName'], x['array'], x['ARcor'],

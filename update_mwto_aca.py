@@ -32,13 +32,13 @@ pwv = pd.read_sql('pwv_data', engine).pwv.values[0]
 
 dsa.selector(array_kind='SEVEN-M',
              minha=-4., maxha=4., letterg=['A', 'B', 'C'],
-             conf='', pwv=pwv)
+             pwv=pwv)
 dsa.selection_df['PWV now'] = pwv
 dsa.selection_df['PWV now date'] = (
     pd.read_sql('pwv_data', engine).date.values[0] + ' ' +
     pd.read_sql('pwv_data', engine).time.values[0])
 dsa.selection_df['date'] = str(dsa._ALMA_ephem.date)
-dsa.selection_df['arrayname'] = dsa.arrays.iloc[0, 3]
+dsa.selection_df['arrayname'] = 'SEVEN-M'
 scorer = dsa.master_dsa_df.apply(
     lambda x: WtoScor.calc_all_scores(
         pwv, x['maxPWVC'], x['Exec. Frac'], x['sbName'], x['array'], x['ARcor'],

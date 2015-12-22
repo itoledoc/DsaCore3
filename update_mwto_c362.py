@@ -51,19 +51,21 @@ dsa.master_dsa_df['allconfs'] = dsa.obs_param.apply(
         [str(x['C36_1']), str(x['C36_2']), str(x['C36_3']), str(x['C36_4']),
          str(x['C36_5']), str(x['C36_7']), str(x['C36_8'])]), axis=1)
 
-scorer.to_sql('scorer_wto_c362', engine, index_label='SBUID',
+sel_sb = dsa.master_dsa_df.query('C36_2 == "C36-2"').unique()
+
+scorer.query('SB_UID in @sel_sb').to_sql('scorer_wto_c362', engine, index_label='SBUID',
               if_exists='replace')
 print('scorer written')
 dsa.inputs.to_sql('inputs_wto_c362', engine, index_label='Cycle',
                   if_exists='replace')
 print('inputs written')
-dsa.selection_df.to_sql('selection_wto_c362', engine, index_label='SBUID',
+dsa.selection_df.query('SB_UID in @sel_sb').to_sql('selection_wto_c362', engine, index_label='SBUID',
                         if_exists='replace')
 print('selection written')
-dsa.master_dsa_df.to_sql('master_wto_c362', engine, index_label='SBUID',
+dsa.master_dsa_df.query('SB_UID in @sel_sb').to_sql('master_wto_c362', engine, index_label='SBUID',
                          if_exists='replace')
 print('master written')
-dsa.obs_param.to_sql('staticparam_wto_c362', engine, index_label='SBUID',
+dsa.obs_param.query('SB_UID in @sel_sb').to_sql('staticparam_wto_c362', engine, index_label='SBUID',
                      if_exists='replace')
 print('stat param written')
 

@@ -880,6 +880,11 @@ class SchedBlock(object):
             n_pcp = 0
 
         try:
+            n_polcp = len(self.data.PolarizationCalParameters)
+        except AttributeError:
+            n_polcp = 0
+
+        try:
             n_ogroup = len(self.data.ObservingGroup)
         except AttributeError:
             n_ogroup = 0
@@ -979,6 +984,19 @@ class SchedBlock(object):
                                         sp.subScanDuration.attrib['unit'])
                 pcpar.append([en_id, self.sb_uid, namep, int_time, subs_dur])
 
+        polcpar = []
+        if n_polcp > 0:
+            for n in range(n_polcp):
+                sp = self.data.PolarizationCalParameters[n]
+                en_id = sp.attrib['entityPartId']
+                namep = sp.name.pyval
+                int_time = convert_tsec(
+                    sp.defaultIntegrationTime.pyval,
+                    sp.defaultIntegrationTime.attrib['unit'])
+                subs_dur = convert_tsec(sp.subScanDuration.pyval,
+                                        sp.subScanDuration.attrib['unit'])
+                polcpar.append([en_id, self.sb_uid, namep, int_time, subs_dur])
+
         ordtar = []
         if n_ogroup > 0:
             for n in range(n_ogroup):
@@ -1002,7 +1020,8 @@ class SchedBlock(object):
                 float(ra), float(dec), float(minar_old), float(maxar_old),
                 int(execount), ispolarization, float(maxpwv),
                 type12m, estimatedtime, maximumtime
-                ), rf, tar, spc, bb, spw, scpar, acpar, bcpar, pcpar, ordtar
+                ), rf, tar, spc, bb, spw, scpar, acpar, bcpar, pcpar, ordtar, \
+            polcpar
 
     @staticmethod
     def read_fieldsource(fs, sbuid, array):

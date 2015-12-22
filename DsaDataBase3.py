@@ -513,6 +513,7 @@ class DsaDatabase3(object):
         bcpart = []
         pcpart = []
         ordtart = []
+        polcpart = []
         sys.stdout.write("Processing Phase II SBs ")
         sys.stdout.flush()
 
@@ -533,7 +534,8 @@ class DsaDatabase3(object):
                 xmlf, sg_sb[1].SB_UID, sg_sb[1].OBSPROJECT_UID, sg_sb[1].OUS_ID,
                 sg_sb[1].sg_name, path)
 
-            rs, rf, tar, spc, bb, spw, scpar, acpar, bcpar, pcpar, ordtar = \
+            rs, rf, tar, spc, bb, spw, scpar, acpar, bcpar, pcpar, ordtar, \
+                polcpar = \
                 sb1.read_schedblocks()
 
             rst.append(rs)
@@ -547,6 +549,7 @@ class DsaDatabase3(object):
             bcpart.extend(bcpar)
             pcpart.extend(pcpar)
             ordtart.extend(ordtar)
+            polcpart.extend(polcpar)
 
         sys.stdout.write("\nDone!\n")
         sys.stdout.flush()
@@ -562,6 +565,7 @@ class DsaDatabase3(object):
         bcpart_arr = np.array(bcpart, dtype=object)
         pcpart_arr = np.array(pcpart, dtype=object)
         ordtart_arr = np.array(ordtart, dtype=object)
+        polcpart_arr = np.array(polcpart, dtype=object)
 
         self._schedblocks_temp = pd.DataFrame(
             rst_arr,
@@ -606,6 +610,12 @@ class DsaDatabase3(object):
             ordtart_arr,
             columns=['targetId', 'SB_UID', 'indObs', 'name']
         ).set_index('targetId', drop=False)
+
+        self.polcalparam = pd.DataFrame(
+            polcpart_arr,
+            columns=['paramRef', 'SB_UID', 'parName', 'intTime',
+                     'subScanDur']
+        ).set_index('paramRef', drop=False)
 
         self.fieldsource = pd.DataFrame(
             rft_arr,
@@ -780,6 +790,7 @@ class DsaDatabase3(object):
         bcpart = []
         pcpart = []
         ordtart = []
+        polcpart =[]
         print "Updating SBs of %s." % obsproject_uid
         sb_uids = []
 
@@ -791,7 +802,8 @@ class DsaDatabase3(object):
             sb1 = SchedBlock(
                 xmlf, sg_sb[1].SB_UID, sg_sb[1].OBSPROJECT_UID, sg_sb[1].OUS_ID,
                 sg_sb[1].sg_name, path)
-            rs, rf, tar, spc, bb, spw, scpar, acpar, bcpar, pcpar, ordtar = \
+            rs, rf, tar, spc, bb, spw, scpar, acpar, bcpar, pcpar, ordtar,\
+                polcpar = \
                 sb1.read_schedblocks()
             rst.append(rs)
             rft.extend(rf)
@@ -804,6 +816,7 @@ class DsaDatabase3(object):
             bcpart.extend(bcpar)
             pcpart.extend(pcpar)
             ordtart.extend(ordtar)
+            polcpart.extend(polcpar)
 
         rst_arr = np.array(rst, dtype=object)
         rft_arr = np.array(rft, dtype=object)
@@ -816,6 +829,7 @@ class DsaDatabase3(object):
         bcpart_arr = np.array(bcpart, dtype=object)
         pcpart_arr = np.array(pcpart, dtype=object)
         ordtart_arr = np.array(ordtart, dtype=object)
+        polcpart_arr = np.array(polcpar, dtype=object)
 
         self._schedblocks_temp.drop(
             self._schedblocks_temp.query('SB_UID in @sb_uids').index.values,
@@ -883,6 +897,16 @@ class DsaDatabase3(object):
             columns=['targetId', 'SB_UID', 'indObs', 'name']
         ).set_index('targetId', drop=False)
         self.orderedtar = self.orderedtar.append(orderedtar)
+
+        self.polcalparam.drop(
+            self.polcalparam.query('SB_UID in @sb_uids').index.values,
+            inplace=True, errors='ignore')
+        polcalparam = pd.DataFrame(
+            polcpart_arr,
+            columns=['paramRef', 'SB_UID', 'parName', 'intTime',
+                     'subScanDur']
+        ).set_index('paramRef', drop=False)
+        self.polcalparam = self.polcalparam.append(polcalparam)
 
         self.fieldsource.drop(
             self.fieldsource.query('SB_UID in @sb_uids').index.values,

@@ -72,7 +72,7 @@ def create_dates(data_arin):
 
 
 def observable(ra1, dec1, alma, ranull, min_ar, max_ar, array, sbuid,
-               horizon=20):
+               polarization=True, horizon=20):
 
     datet = alma.date
     conf = [None, None, None, None, None, None, None, None]

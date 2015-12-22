@@ -191,8 +191,6 @@ class DSACoreService(xmlrpc.XMLRPC):
         if numant == 0 or array_kind == 'TWELVE-M':
             numant = None
 
-
-
         if timestring != '':
             dsa.set_time(timestring)  # YYYY-MM-DD HH:mm:SS
         else:

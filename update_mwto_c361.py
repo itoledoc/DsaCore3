@@ -15,14 +15,25 @@ iers.IERS.iers_table = iers.IERS_A.open(
 engine = create_engine(
         'postgresql://dsacore:dsa2020@tableau.alma.cl:5432/dsa_data')
 refr = False
-if time.time() - os.path.getmtime('/users/aod/.mwto_c361/') > 3600.:
-    refr = True
 try:
-    datas = Data.DsaDatabase3(refresh_apdm=refr, path='/users/aod/.mwto_c361/',
+    path = os.environ['APDM_PREFIX']
+except KeyError:
+    path = os.environ['HOME'] + '/.apdm_'
+
+try:
+    if time.time() - os.path.getmtime(path + 'tabl_c361/') > 3600.:
+        refr = True
+except OSError:
+    os.mkdir(path + 'tabl_c361/')
+    refr = True
+
+try:
+    datas = Data.DsaDatabase3(refresh_apdm=refr, path=path + 'tabl_c361/',
                               allc2=False, loadp1=False)
 except IOError:
-    datas = Data.DsaDatabase3(path='/users/aod/.mwto_c361/',
+    datas = Data.DsaDatabase3(path=path + 'tabl_c361/',
                               allc2=False, loadp1=False)
+
 
 dsa = Dsa.DsaAlgorithm3(datas)
 

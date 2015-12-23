@@ -447,8 +447,29 @@ class DsaAlgorithm3(object):
         else:
             if numant is None:
                 numant = 2.
+
+            # Until we have a clear idea on how to handle TP ampcals, removing
+            # them from the DSA output
+
+            selsb = self.master_dsa_df.query(
+                    'array == "TP-Array"').SB_UID.unique()
+            selsb1 = self.master_dsa_df[
+                self.master_dsa_df.sbNote.str.contains('TP ampcal')
+            ].SB_UID.unique()
+
+            selsb2 = pd.merge(
+                pd.merge(
+                    self.data.orderedtar.query('SB_UID in @selsb'),
+                    self.data.target,
+                    on=['SB_UID', 'targetId']),
+                self.data.fieldsource,
+                on=['SB_UID', 'fieldRef']).query(
+                    'name_y == "Amplitude"').SB_UID.unique()
+
             self.selection_df['selConf'] = self.master_dsa_df.apply(
-                lambda x: True if x['array'] == "TP-Array" else
+                lambda x: True if (x['array'] == "TP-Array") and
+                                  ((x['SB_UID'] not in selsb1) and
+                                   (x['SB_UID'] not in selsb2)) else
                 False, axis=1
             )
             self.master_dsa_df['blmax'] = pd.np.NaN
@@ -458,6 +479,15 @@ class DsaAlgorithm3(object):
             self.master_dsa_df['bl_ratio'] = 1.
 
         # select observable: elev, ha, moon & sun distance
+
+        polarization = self.master_dsa_df.query('PolCalibrator != ""').copy()
+        try:
+            cpol = SkyCoord(
+                ra=polarization.RA_pol * u.degree,
+                dec=polarization.DEC_pol * u.degree,
+                location=ALMA, obstime=self._time_astropy)
+        except IndexError:
+            cpol = polarization.copy()
 
         try:
             c = SkyCoord(
@@ -485,9 +515,26 @@ class DsaAlgorithm3(object):
             (self.master_dsa_df.DEC != 0)
         )
 
+        self.selection_df.set_index('SB_UID', drop=False, inplace=True)
+
+        if len(cpol) > 0:
+            ha = self._time_astropy.sidereal_time('apparent') - cpol.ra
+            polarization['HA'] = ha.wrap_at(180 * u.degree).value
+            polarization['RAh'] = cpol.ra.hour
+            polarization['elev'] = cpol.transform_to(
+                AltAz(obstime=self._time_astropy, location=ALMA)).alt.value
+            corr_el = ((polarization.ephem != 'N/A') &
+                       (polarization.ephem != 'OK'))
+            polarization.ix[corr_el, 'elev'] = -90.
+            polarization.ix[corr_el, 'HA'] = -24.
+            self.polarization = polarization
+            self.selection_df.loc[
+                polarization[polarization.elev < 20].SB_UID.values, 'selElev'
+            ] = False
+
         self.selection_df['selHA'] = (
-            (self.master_dsa_df.HA >= minha) &
-            (self.master_dsa_df.HA <= maxha)
+            (self.master_dsa_df.set_index('SB_UID').HA >= minha) &
+            (self.master_dsa_df.set_index('SB_UID').HA <= maxha)
         )
 
         # Sel Conditions, exec. frac
@@ -515,7 +562,8 @@ class DsaAlgorithm3(object):
             lambda x: 1 / (x['bl_ratio'] * x['tsys_ratio']) if
             (x['bl_ratio'] * x['tsys_ratio']) <= 100. else 0., axis=1)
 
-        self.selection_df['selCond'] = self.master_dsa_df.apply(
+        self.selection_df['selCond'] = self.master_dsa_df.set_index(
+                'SB_UID').apply(
             lambda x: True if x['Exec. Frac'] >= 0.5 else False,
             axis=1
         )
@@ -588,7 +636,7 @@ class DsaAlgorithm3(object):
                  'maxPWVC', 'minAR', 'maxAR', 'OT_BestConf', 'BestConf',
                  'two_12m', 'estimatedTime', 'isPolarization', 'ephem',
                  'airmass_ot', 'transmission_ot', 'tau_ot', 'tsky_ot',
-                 'tsys_ot']],
+                 'tsys_ot', 'sbNote']],
             on=['SB_UID'], how='left')
 
         self.master_dsa_df = pd.merge(
@@ -632,6 +680,21 @@ class DsaAlgorithm3(object):
                 ['SB_UID', 'rise', 'set', 'note', 'C36_1', 'C36_2', 'C36_3',
                  'C36_4', 'C36_5', 'C36_6', 'C36_7', 'C36_8', 'twelve_good']],
             on=['SB_UID'], how='left')
+
+        step1 = pd.merge(self.data.polcalparam[['SB_UID', 'paramRef']],
+                         self.data.target, on=['SB_UID', 'paramRef'])
+        step2 = pd.merge(step1, self.data.orderedtar, on=['SB_UID', 'targetId'])
+        step3 = pd.merge(
+                step2, self.data.fieldsource, on=['SB_UID', 'fieldRef']
+        ).drop_duplicates('SB_UID')[['SB_UID', 'RA', 'DEC', 'sourcename']]
+        step3.columns = pd.Index(
+                ['SB_UID', 'RA_pol', 'DEC_pol',
+                 'PolCalibrator'], dtype='object')
+        self.master_dsa_df = pd.merge(self.master_dsa_df, step3, on='SB_UID',
+                                      how='left')
+        self.master_dsa_df.RA_pol.fillna(0, inplace=True)
+        self.master_dsa_df.DEC_pol.fillna(0, inplace=True)
+        self.master_dsa_df.PolCalibrator.fillna('', inplace=True)
 
     def _query_array(self, array_kind='TWELVE-M'):
         """
@@ -821,6 +884,10 @@ class DsaAlgorithm3(object):
 
         return pd.Series([array_ar, num_bl],
                          index=['array_ar_cond', 'num_bl_use'])
+
+    def _observe_pol(self):
+
+        pass
 
 
 def calc_bl_ratio(arrayk, cycle, numbl, selconf, numant=None):

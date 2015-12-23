@@ -22,17 +22,17 @@ except KeyError:
     path = os.environ['HOME'] + '/.apdm_'
 
 try:
-    if time.time() - os.path.getmtime(path + 'tabl_12m/') > 3600.:
+    if time.time() - os.path.getmtime(path + 'tabl_tp/') > 3600.:
         refr = True
 except OSError:
-    os.mkdir(path + 'tabl_12m/')
+    os.mkdir(path + 'tabl_tp/')
     refr = True
 
 try:
-    datas = Data.DsaDatabase3(refresh_apdm=refr, path=path + 'tabl_12m/',
+    datas = Data.DsaDatabase3(refresh_apdm=refr, path=path + 'tabl_tp/',
                               allc2=False, loadp1=False)
 except IOError:
-    datas = Data.DsaDatabase3(path=path + 'tabl_12m/',
+    datas = Data.DsaDatabase3(path=path + 'tabl_tp/',
                               allc2=False, loadp1=False)
 
 dsa = Dsa.DsaAlgorithm3(datas)
@@ -40,15 +40,16 @@ dsa = Dsa.DsaAlgorithm3(datas)
 dsa.write_ephem_coords()
 dsa.static_param()
 pwv = pd.read_sql('pwv_data', engine).pwv.values[0]
-dsa.selector(
-    minha=-4., maxha=4., letterg=['A', 'B', 'C'],
-    array_id='last', pwv=pwv)
+
+dsa.selector(array_kind='TP-Array',
+             minha=-4., maxha=4., letterg=['A', 'B', 'C'],
+             pwv=pwv)
 dsa.selection_df['PWV now'] = pwv
 dsa.selection_df['PWV now date'] = (
     pd.read_sql('pwv_data', engine).date.values[0] + ' ' +
     pd.read_sql('pwv_data', engine).time.values[0])
 dsa.selection_df['date'] = str(dsa._ALMA_ephem.date)
-dsa.selection_df['arrayname'] = dsa.arrays.iloc[0, 3]
+dsa.selection_df['arrayname'] = 'TP-Array'
 scorer = dsa.master_dsa_df.apply(
     lambda x: WtoScor.calc_all_scores(
         pwv, x['maxPWVC'], x['Exec. Frac'], x['sbName'], x['array'], x['ARcor'],
@@ -61,19 +62,21 @@ dsa.master_dsa_df['allconfs'] = dsa.obs_param.apply(
         [str(x['C36_1']), str(x['C36_2']), str(x['C36_3']), str(x['C36_4']),
          str(x['C36_5']), str(x['C36_7']), str(x['C36_8'])]), axis=1)
 
-scorer.to_sql('scorer_wto_test', engine, index_label='SBUID',
+sel_sb = dsa.master_dsa_df.query('array == "TP-Array"').SB_UID.unique()
+
+scorer.query('SB_UID in @sel_sb').to_sql('scorer_wto_tp', engine, index_label='SBUID',
               if_exists='replace')
 print('scorer written')
-dsa.inputs.to_sql('inputs_wto_text', engine, index_label='Cycle',
+dsa.inputs.to_sql('inputs_wto_tp', engine, index_label='Cycle',
                   if_exists='replace')
 print('inputs written')
-dsa.selection_df.to_sql('selection_wto_test', engine, index_label='SBUID',
+dsa.selection_df.query('SB_UID in @sel_sb').to_sql('selection_wto_tp', engine, index_label='SBUID',
                         if_exists='replace')
 print('selection written')
-dsa.master_dsa_df.to_sql('master_wto_test', engine, index_label='SBUID',
+dsa.master_dsa_df.query('SB_UID in @sel_sb').to_sql('master_wto_tp', engine, index_label='SBUID',
                          if_exists='replace')
 print('master written')
-dsa.obs_param.to_sql('staticparam_wto_test', engine, index_label='SBUID',
+dsa.obs_param.query('SB_UID in @sel_sb').to_sql('staticparam_wto_tp', engine, index_label='SBUID',
                      if_exists='replace')
 print('stat param written')
 

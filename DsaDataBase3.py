@@ -112,6 +112,7 @@ class DsaDatabase3(object):
             "WHERE regexp_like (aqua.OBSPROJECTCODE, '^201[35]\..*\.[AST]') "
             "AND aqua.EXECBLOCKUID = shift.SE_EB_UID")
 
+        # noinspection SqlResolve
         self._sqlqa0com = str(
             "SELECT aqua.FINALCOMMENTID, "
             "DBMS_LOB.SUBSTR(acom.CCOMMENT) as COMENT "
@@ -790,7 +791,7 @@ class DsaDatabase3(object):
         bcpart = []
         pcpart = []
         ordtart = []
-        polcpart =[]
+        polcpart = []
         print "Updating SBs of %s." % obsproject_uid
         sb_uids = []
 
@@ -829,7 +830,7 @@ class DsaDatabase3(object):
         bcpart_arr = np.array(bcpart, dtype=object)
         pcpart_arr = np.array(pcpart, dtype=object)
         ordtart_arr = np.array(ordtart, dtype=object)
-        polcpart_arr = np.array(polcpar, dtype=object)
+        polcpart_arr = np.array(polcpart, dtype=object)
 
         self._schedblocks_temp.drop(
             self._schedblocks_temp.query('SB_UID in @sb_uids').index.values,

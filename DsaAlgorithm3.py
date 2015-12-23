@@ -709,15 +709,8 @@ class DsaAlgorithm3(object):
                 "WHERE se.SE_TYPE=7 and se.SE_TIMESTAMP > SYSDATE - 1/1. "
                 "and sa.SLOG_SE_ID = se.SE_ID and sa.SLOG_ATTR_TYPE = 31 "
                 "and se.SE_LOCATION='OSF-AOS' and se.SE_CORRELATORTYPE = 'BL' "
-                "and se.SE_ARRAYFAMILY = '12 [m]'")
-            # aca = str(
-            #     "select se.SE_TIMESTAMP ts1, sa.SLOG_ATTR_VALUE av1, "
-            #     "se.SE_ARRAYNAME, se.SE_ID se1, se.SE_ARRAYFAMILY, "
-            #     "se.SE_CORRELATORTYPE from ALMA.SHIFTLOG_ENTRIES se, "
-            #     "ALMA.SLOG_ENTRY_ATTR sa "
-            #     "WHERE se.SE_TYPE=7 and se.SE_TIMESTAMP > SYSDATE - 1/1. "
-            #     "and sa.SLOG_SE_ID = se.SE_ID and sa.SLOG_ATTR_TYPE = 31 "
-            #     "and se.SE_LOCATION='OSF-AOS'")
+                "and se.SE_ARRAYFAMILY = '12 [m]' "
+                "and se.SE_ARRAYTYPE != 'Manual'")
         elif array_kind == 'SEVEN-M':
             sql = str(
                 "select se.SE_TIMESTAMP ts1, sa.SLOG_ATTR_VALUE av1, "
@@ -726,7 +719,8 @@ class DsaAlgorithm3(object):
                 "WHERE se.SE_TYPE=7 and se.SE_TIMESTAMP > SYSDATE - 1/1. "
                 "and sa.SLOG_SE_ID = se.SE_ID and sa.SLOG_ATTR_TYPE = 31 "
                 "and se.SE_LOCATION='OSF-AOS' and se.SE_CORRELATORTYPE = 'ACA' "
-                "and se.SE_ARRAYFAMILY = '7 [m]'")
+                "and se.SE_ARRAYFAMILY = '7 [m]' "
+                "and se.SE_ARRAYTYPE != 'Manual'")
         elif array_kind == 'TP-Array':
             sql = str(
                 "select se.SE_TIMESTAMP ts1, sa.SLOG_ATTR_VALUE av1, "
@@ -735,11 +729,11 @@ class DsaAlgorithm3(object):
                 "WHERE se.SE_TYPE=7 and se.SE_TIMESTAMP > SYSDATE - 1/1. "
                 "and sa.SLOG_SE_ID = se.SE_ID and sa.SLOG_ATTR_TYPE = 31 "
                 "and se.SE_LOCATION='OSF-AOS' and se.SE_CORRELATORTYPE = 'ACA' "
-                "and se.SE_ARRAYFAMILY = 'Total Power'")
+                "and se.SE_ARRAYFAMILY = 'Total Power' "
+                "and se.SE_ARRAYTYPE != 'Manual'")
         else:
             print("%s array kind is not valid. Use TWELVE-M, SEVEN-M, TP-Array")
             return
-
 
         self.data._cursor.execute(sql)
         self._arrays_info = pd.DataFrame(

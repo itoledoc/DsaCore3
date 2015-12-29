@@ -564,7 +564,7 @@ class DsaAlgorithm3(object):
 
         self.selection_df['selCond'] = self.master_dsa_df.set_index(
                 'SB_UID').apply(
-            lambda x: True if x['Exec. Frac'] >= 0.5 else False,
+            lambda x: True if x['Exec. Frac'] >= 0.70 else False,
             axis=1
         )
 

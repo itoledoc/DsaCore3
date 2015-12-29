@@ -144,6 +144,26 @@ class DsaDatabase3(object):
             lambda x: x['delta'].total_seconds() / 3600., axis=1
         )
 
+        h = ephem.Date(ephem.now() - 7.)
+        # noinspection PyUnusedLocal
+        hs = str(h)[:10].replace('/', '-')
+
+        self.qastatus = self.aqua_execblock.query(
+            'QA0STATUS in ["Unset", "Pass"] or '
+            '(QA0STATUS == "SemiPass" and STARTTIME > @hs)').groupby(
+            ['SB_UID', 'QA0STATUS']).QA0STATUS.count().unstack().fillna(0)
+
+        if 'Pass' not in self.qastatus.columns.values:
+            self.qastatus['Pass'] = 0
+        if 'Unset' not in self.qastatus.columns.values:
+            self.qastatus['Unset'] = 0
+        if 'SemiPass' not in self.qastatus.columns.values:
+            self.qastatus['SemiPass'] = 0
+
+        self.qastatus['Observed'] = self.qastatus.Unset + self.qastatus.Pass
+        self.qastatus['ebTime'] = self.aqua_execblock.query(
+                'SE_STATUS == "SUCCESS"').groupby('SB_UID').delta.mean()
+
         # Query for Executives
         self._sql_executive = str(
             "SELECT PROJECTUID as OBSPROJECT_UID, ASSOCIATEDEXEC "
@@ -1038,6 +1058,27 @@ class DsaDatabase3(object):
         self.aqua_execblock['delta'] = self.aqua_execblock.apply(
             lambda x: x['delta'].total_seconds() / 3600., axis=1
         )
+
+        h = ephem.Date(ephem.now() - 7.)
+        # noinspection PyUnusedLocal
+        hs = str(h)[:10].replace('/', '-')
+
+        self.qastatus = self.aqua_execblock.query(
+            'QA0STATUS in ["Unset", "Pass"] or '
+            '(QA0STATUS == "SemiPass" and STARTTIME > @hs)').groupby(
+            ['SB_UID', 'QA0STATUS']).QA0STATUS.count().unstack().fillna(0)
+
+        if 'Pass' not in self.qastatus.columns.values:
+            self.qastatus['Pass'] = 0
+        if 'Unset' not in self.qastatus.columns.values:
+            self.qastatus['Unset'] = 0
+        if 'SemiPass' not in self.qastatus.columns.values:
+            self.qastatus['SemiPass'] = 0
+
+        self.qastatus['Observed'] = self.qastatus.Unset + self.qastatus.Pass
+        self.qastatus['ebTime'] = self.aqua_execblock.query(
+                'SE_STATUS == "SUCCESS" and QA0STATUS != ["Fail", "SemiPass"]'
+        ).groupby('SB_UID').delta.mean()
 
         self._cursor.execute(self._sql_sbstates)
         self.sb_status = pd.DataFrame(

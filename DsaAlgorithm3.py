@@ -645,29 +645,29 @@ class DsaAlgorithm3(object):
             on=['SB_UID'], how='left')
 
         # noinspection PyUnusedLocal
-        sbs_uid_s = self.master_dsa_df.SB_UID.unique()
-        h = ephem.Date(ephem.now() - 7.)
+        # sbs_uid_s = self.master_dsa_df.SB_UID.unique()
+        # h = ephem.Date(ephem.now() - 7.)
         # noinspection PyUnusedLocal
-        hs = str(h)[:10].replace('/', '-')
-        qastatus = self.data.aqua_execblock.query(
-            'SB_UID in @sbs_uid_s').query(
-            'QA0STATUS in ["Unset", "Pass"] or '
-            '(QA0STATUS == "SemiPass" and STARTTIME > @hs)').groupby(
-            ['SB_UID', 'QA0STATUS']).QA0STATUS.count().unstack().fillna(0)
-
-        if 'Pass' not in qastatus.columns.values:
-            qastatus['Pass'] = 0
-        if 'Unset' not in qastatus.columns.values:
-            qastatus['Unset'] = 0
-        if 'SemiPass' not in qastatus.columns.values:
-            qastatus['SemiPass'] = 0
-
-        qastatus['Observed'] = qastatus.Unset + qastatus.Pass
+        # hs = str(h)[:10].replace('/', '-')
+        # qastatus = self.data.aqua_execblock.query(
+        #     'SB_UID in @sbs_uid_s').query(
+        #     'QA0STATUS in ["Unset", "Pass"] or '
+        #     '(QA0STATUS == "SemiPass" and STARTTIME > @hs)').groupby(
+        #     ['SB_UID', 'QA0STATUS']).QA0STATUS.count().unstack().fillna(0)
+        #
+        # if 'Pass' not in qastatus.columns.values:
+        #     qastatus['Pass'] = 0
+        # if 'Unset' not in qastatus.columns.values:
+        #     qastatus['Unset'] = 0
+        # if 'SemiPass' not in qastatus.columns.values:
+        #     qastatus['SemiPass'] = 0
+        #
+        # qastatus['Observed'] = qastatus.Unset + qastatus.Pass
 
         self.master_dsa_df = pd.merge(
             self.master_dsa_df,
-            qastatus[
-                ['Unset', 'Pass', 'Observed', 'SemiPass']],
+            self.data.qastatus[
+                ['Unset', 'Pass', 'Observed', 'SemiPass', 'ebTime']],
             left_on='SB_UID', right_index=True, how='left')
         self.master_dsa_df.Unset.fillna(0, inplace=True)
         self.master_dsa_df.Pass.fillna(0, inplace=True)
@@ -680,6 +680,15 @@ class DsaAlgorithm3(object):
                 ['SB_UID', 'rise', 'set', 'note', 'C36_1', 'C36_2', 'C36_3',
                  'C36_4', 'C36_5', 'C36_6', 'C36_7', 'C36_8', 'twelve_good']],
             on=['SB_UID'], how='left')
+
+        self.master_dsa_df.ebTime.fillna(0, inplace=True)
+
+        self.master_dsa_df['estTimeOr'] = \
+            self.master_dsa_df.estimatedTime.copy()
+        self.master_dsa_df['estimatedTime'] = self.master_dsa_df.apply(
+            lambda x: x['estimatedTime'] if x['ebTime'] <= 0.1 else
+            x['ebTime'] * x['EXECOUNT'], axis=1
+        )
 
         step1 = pd.merge(self.data.polcalparam[['SB_UID', 'paramRef']],
                          self.data.target, on=['SB_UID', 'paramRef'])

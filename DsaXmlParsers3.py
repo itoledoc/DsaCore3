@@ -885,6 +885,16 @@ class SchedBlock(object):
             n_polcp = 0
 
         try:
+            n_delaycp = len(self.data.DelayCalParameters)
+        except AttributeError:
+            n_delaycp = 0
+
+        try:
+            n_chscp = len(self.data.CheckSourceCalParameters)
+        except AttributeError:
+            n_chscp = 0
+
+        try:
             n_ogroup = len(self.data.ObservingGroup)
         except AttributeError:
             n_ogroup = 0
@@ -997,6 +1007,37 @@ class SchedBlock(object):
                                         sp.subScanDuration.attrib['unit'])
                 polcpar.append([en_id, self.sb_uid, namep, int_time, subs_dur])
 
+        delaycpar = []
+        if n_delaycp > 0:
+            for n in range(n_delaycp):
+                sp = self.data.DelayCalParameters[n]
+                en_id = sp.attrib['entityPartId']
+                try:
+                    namep = sp.name.pyval
+                except AttributeError:
+                    namep = ''
+                int_time = convert_tsec(
+                    sp.defaultIntegrationTime.pyval,
+                    sp.defaultIntegrationTime.attrib['unit'])
+                subs_dur = convert_tsec(sp.subScanDuration.pyval,
+                                        sp.subScanDuration.attrib['unit'])
+                delaycpar.append(
+                        [en_id, self.sb_uid, namep, int_time, subs_dur])
+
+        checkcpar = []
+        if n_chscp > 0:
+            for n in range(n_chscp):
+                sp = self.data.CheckSourceCalParameters[n]
+                en_id = sp.attrib['entityPartId']
+                namep = sp.name.pyval
+                int_time = convert_tsec(
+                    sp.defaultIntegrationTime.pyval,
+                    sp.defaultIntegrationTime.attrib['unit'])
+                subs_dur = convert_tsec(sp.subScanDuration.pyval,
+                                        sp.subScanDuration.attrib['unit'])
+                checkcpar.append(
+                        [en_id, self.sb_uid, namep, int_time, subs_dur])
+
         ordtar = []
         if n_ogroup > 0:
             for n in range(n_ogroup):
@@ -1021,7 +1062,7 @@ class SchedBlock(object):
                 int(execount), ispolarization, float(maxpwv),
                 type12m, estimatedtime, maximumtime
                 ), rf, tar, spc, bb, spw, scpar, acpar, bcpar, pcpar, ordtar, \
-            polcpar
+            polcpar, delaycpar, checkcpar
 
     @staticmethod
     def read_fieldsource(fs, sbuid, array):

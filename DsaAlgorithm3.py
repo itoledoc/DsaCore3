@@ -644,31 +644,12 @@ class DsaAlgorithm3(object):
             self.data.sb_status[['SB_UID', 'SB_STATE', 'EXECOUNT']],
             on=['SB_UID'], how='left')
 
-        # noinspection PyUnusedLocal
-        # sbs_uid_s = self.master_dsa_df.SB_UID.unique()
-        # h = ephem.Date(ephem.now() - 7.)
-        # noinspection PyUnusedLocal
-        # hs = str(h)[:10].replace('/', '-')
-        # qastatus = self.data.aqua_execblock.query(
-        #     'SB_UID in @sbs_uid_s').query(
-        #     'QA0STATUS in ["Unset", "Pass"] or '
-        #     '(QA0STATUS == "SemiPass" and STARTTIME > @hs)').groupby(
-        #     ['SB_UID', 'QA0STATUS']).QA0STATUS.count().unstack().fillna(0)
-        #
-        # if 'Pass' not in qastatus.columns.values:
-        #     qastatus['Pass'] = 0
-        # if 'Unset' not in qastatus.columns.values:
-        #     qastatus['Unset'] = 0
-        # if 'SemiPass' not in qastatus.columns.values:
-        #     qastatus['SemiPass'] = 0
-        #
-        # qastatus['Observed'] = qastatus.Unset + qastatus.Pass
-
         self.master_dsa_df = pd.merge(
             self.master_dsa_df,
             self.data.qastatus[
                 ['Unset', 'Pass', 'Observed', 'SemiPass', 'ebTime']],
             left_on='SB_UID', right_index=True, how='left')
+
         self.master_dsa_df.Unset.fillna(0, inplace=True)
         self.master_dsa_df.Pass.fillna(0, inplace=True)
         self.master_dsa_df.Observed.fillna(0, inplace=True)

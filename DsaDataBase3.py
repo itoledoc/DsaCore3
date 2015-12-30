@@ -535,6 +535,8 @@ class DsaDatabase3(object):
         pcpart = []
         ordtart = []
         polcpart = []
+        delaycpart = []
+        checkcpart = []
         sys.stdout.write("Processing Phase II SBs ")
         sys.stdout.flush()
 
@@ -556,7 +558,7 @@ class DsaDatabase3(object):
                 sg_sb[1].sg_name, path)
 
             rs, rf, tar, spc, bb, spw, scpar, acpar, bcpar, pcpar, ordtar, \
-                polcpar = \
+                polcpar, delaycpar, checkcpar = \
                 sb1.read_schedblocks()
 
             rst.append(rs)
@@ -571,6 +573,8 @@ class DsaDatabase3(object):
             pcpart.extend(pcpar)
             ordtart.extend(ordtar)
             polcpart.extend(polcpar)
+            delaycpart.extend(delaycpar)
+            checkcpart.extend(checkcpar)
 
         sys.stdout.write("\nDone!\n")
         sys.stdout.flush()
@@ -587,6 +591,8 @@ class DsaDatabase3(object):
         pcpart_arr = np.array(pcpart, dtype=object)
         ordtart_arr = np.array(ordtart, dtype=object)
         polcpart_arr = np.array(polcpart, dtype=object)
+        delaycpart_arr = np.array(delaycpart, dtype=object)
+        checkcpart_arr = np.array(checkcpart, dtype=object)
 
         self._schedblocks_temp = pd.DataFrame(
             rst_arr,
@@ -634,6 +640,18 @@ class DsaDatabase3(object):
 
         self.polcalparam = pd.DataFrame(
             polcpart_arr,
+            columns=['paramRef', 'SB_UID', 'parName', 'intTime',
+                     'subScanDur']
+        ).set_index('paramRef', drop=False)
+
+        self.delaycalparam = pd.DataFrame(
+            delaycpart_arr,
+            columns=['paramRef', 'SB_UID', 'parName', 'intTime',
+                     'subScanDur']
+        ).set_index('paramRef', drop=False)
+
+        self.checkcalparam = pd.DataFrame(
+            checkcpart_arr,
             columns=['paramRef', 'SB_UID', 'parName', 'intTime',
                      'subScanDur']
         ).set_index('paramRef', drop=False)
@@ -812,6 +830,9 @@ class DsaDatabase3(object):
         pcpart = []
         ordtart = []
         polcpart = []
+        delaycpart = []
+        checkcpart = []
+
         print "Updating SBs of %s." % obsproject_uid
         sb_uids = []
 
@@ -824,7 +845,7 @@ class DsaDatabase3(object):
                 xmlf, sg_sb[1].SB_UID, sg_sb[1].OBSPROJECT_UID, sg_sb[1].OUS_ID,
                 sg_sb[1].sg_name, path)
             rs, rf, tar, spc, bb, spw, scpar, acpar, bcpar, pcpar, ordtar,\
-                polcpar = \
+                polcpar, delaycpar, checkcpar = \
                 sb1.read_schedblocks()
             rst.append(rs)
             rft.extend(rf)
@@ -838,6 +859,8 @@ class DsaDatabase3(object):
             pcpart.extend(pcpar)
             ordtart.extend(ordtar)
             polcpart.extend(polcpar)
+            delaycpart.extend(delaycpar)
+            checkcpart.extend(checkcpar)
 
         rst_arr = np.array(rst, dtype=object)
         rft_arr = np.array(rft, dtype=object)
@@ -851,6 +874,8 @@ class DsaDatabase3(object):
         pcpart_arr = np.array(pcpart, dtype=object)
         ordtart_arr = np.array(ordtart, dtype=object)
         polcpart_arr = np.array(polcpart, dtype=object)
+        delaycpart_arr = np.array(delaycpart, dtype=object)
+        checkcpart_arr = np.array(checkcpart, dtype=object)
 
         self._schedblocks_temp.drop(
             self._schedblocks_temp.query('SB_UID in @sb_uids').index.values,
@@ -909,6 +934,18 @@ class DsaDatabase3(object):
                      'subScanDur']
         ).set_index('paramRef', drop=False)
         self.phasecalparam = self.phasecalparam.append(phasecalparam)
+
+        self.delaycalparam = pd.DataFrame(
+            delaycpart_arr,
+            columns=['paramRef', 'SB_UID', 'parName', 'intTime',
+                     'subScanDur']
+        ).set_index('paramRef', drop=False)
+
+        self.checkcalparam = pd.DataFrame(
+            checkcpart_arr,
+            columns=['paramRef', 'SB_UID', 'parName', 'intTime',
+                     'subScanDur']
+        ).set_index('paramRef', drop=False)
 
         self.orderedtar.drop(
             self.orderedtar.query('SB_UID in @sb_uids').index.values,

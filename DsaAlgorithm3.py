@@ -388,7 +388,8 @@ class DsaAlgorithm3(object):
                     self.master_dsa_df[['array_ar_cond', 'num_bl_use']] = (
                         self.master_dsa_df.apply(
                             lambda x: self._get_sbbased_bl_prop(
-                                ruv, x['blmin'] * 0.9, x['blmax'] * 1.1),
+                                ruv, x['blmin'] * 0.9, x['blmax'] * 1.1,
+                                x['array']),
                             axis=1)
                     )
                     self.master_dsa_df['bl_ratio'] = self.master_dsa_df.apply(
@@ -407,7 +408,9 @@ class DsaAlgorithm3(object):
                 self.master_dsa_df[['array_ar_cond', 'num_bl_use']] = (
                     self.master_dsa_df.apply(
                         lambda x: self._get_sbbased_bl_prop(
-                            ruv, x['blmin'] * 0.9, x['blmax'] * 1.1), axis=1)
+                            ruv, x['blmin'] * 0.9, x['blmax'] * 1.1,
+                            x['array']),
+                        axis=1)
                 )
 
                 self.selection_df['selConf'] = self.master_dsa_df.apply(
@@ -858,7 +861,7 @@ class DsaAlgorithm3(object):
         return array_ar, num_bl, num_ant, ruv
 
     @staticmethod
-    def _get_sbbased_bl_prop(ruv, blmin, blmax):
+    def _get_sbbased_bl_prop(ruv, blmin, blmax, arrayfam):
 
         """
 
@@ -867,6 +870,11 @@ class DsaAlgorithm3(object):
         :param blmax:
         :return:
         """
+        if arrayfam != "TWELVE-M":
+            return pd.Series(
+                [pd.np.NaN, 0],
+                index=['array_ar_cond', 'num_bl_use'])
+
         ruv = ruv[(ruv >= blmin) & (ruv <= blmax)]
         if len(ruv) < 400.:
             return pd.Series(

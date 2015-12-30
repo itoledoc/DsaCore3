@@ -41,7 +41,7 @@ dsa.static_param()
 pwv = pd.read_sql('pwv_data', engine).pwv.values[0]
 
 dsa.selector(
-    minha=-4., maxha=4., letterg=['A', 'B', 'C'],
+    minha=-3., maxha=3., letterg=['A', 'B', 'C'],
     conf=['C36-2'], pwv=pwv)
 dsa.selection_df['PWV now'] = pwv
 dsa.selection_df['PWV now date'] = (

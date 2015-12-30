@@ -74,14 +74,12 @@ class DSACoreService(xmlrpc.XMLRPC):
                           conf=conf, array_id=array_id,
                           pwv=pwv, horizon=horizon, numant=numant,
                           bands=bands)
-
         scorer = self.dsa.master_dsa_df.apply(
             lambda x: DsaScore.calc_all_scores(
                 pwv, x['maxPWVC'], x['Exec. Frac'], x['sbName'], x['array'], x['ARcor'],
                 x['DEC'], x['array_ar_cond'], x['minAR'], x['maxAR'], x['Observed'],
                 x['EXECOUNT'], x['PRJ_SCIENTIFIC_RANK'], x['DC_LETTER_GRADE'],
                 x['CYCLE'], x['HA']), axis=1)
-
         fin = pd.merge(
                 pd.merge(
                     self.dsa.master_dsa_df[

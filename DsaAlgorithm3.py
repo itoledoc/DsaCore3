@@ -392,7 +392,7 @@ class DsaAlgorithm3(object):
                             axis=1)
                     )
                     self.master_dsa_df['bl_ratio'] = self.master_dsa_df.apply(
-                        lambda x: calc_bl_ratio(
+                        lambda x: 1. / calc_bl_ratio(
                             x['array'], x['CYCLE'], x['num_bl_use'],
                             self.selection_df.ix[x.name, 'selConf']),
                         axis=1
@@ -417,7 +417,7 @@ class DsaAlgorithm3(object):
                 )
 
                 self.master_dsa_df['bl_ratio'] = self.master_dsa_df.apply(
-                    lambda x: calc_bl_ratio(
+                    lambda x: 1. / calc_bl_ratio(
                         x['array'], x['CYCLE'], x['num_bl_use'],
                         self.selection_df.ix[x.name, 'selConf']),
                     axis=1
@@ -437,7 +437,7 @@ class DsaAlgorithm3(object):
             self.master_dsa_df['array_ar_cond'] = pd.np.NaN
             self.master_dsa_df['num_bl_use'] = pd.np.NaN
             self.master_dsa_df['bl_ratio'] = self.master_dsa_df.apply(
-                lambda x: calc_bl_ratio(
+                lambda x: 1. / calc_bl_ratio(
                     x['array'], x['CYCLE'], x['num_bl_use'],
                     self.selection_df.ix[x.name, 'selConf'], numant=numant),
                 axis=1
@@ -555,17 +555,26 @@ class DsaAlgorithm3(object):
                 lambda x: calc_tsys(x['band'], x['tsky'], x['tau'],
                                     x['airmass']), axis=1))
         self.master_dsa_df['tsys_ratio'] = self.master_dsa_df.apply(
-            lambda x: (x['tsys'] / x['tsys_ot'])**2. if x['tsys'] <= 25000. else
-            pd.np.inf, axis=1)
+            lambda x: 1. / (x['tsys'] / x['tsys_ot'])**2.
+            if x['tsys'] <= 25000. else
+            0., axis=1)
 
         self.master_dsa_df['Exec. Frac'] = self.master_dsa_df.apply(
-            lambda x: 1 / (x['bl_ratio'] * x['tsys_ratio']) if
+            lambda x: (x['bl_ratio'] * x['tsys_ratio']) if
             (x['bl_ratio'] * x['tsys_ratio']) <= 100. else 0., axis=1)
 
         self.selection_df['selCond'] = self.master_dsa_df.set_index(
                 'SB_UID').apply(
             lambda x: True if x['Exec. Frac'] >= 0.70 else False,
             axis=1
+        )
+
+        self.calc_completion()
+        self.master_dsa_df = pd.merge(
+            self.master_dsa_df,
+            self.grouped_ous[['OBSPROJECT_UID', 'GOUS_ID', 'GOUS_comp']],
+            on=['OBSPROJECT_UID', 'GOUS_ID'],
+            how='left'
         )
 
         self.master_dsa_df.set_index('SB_UID', drop=False, inplace=True)
@@ -872,6 +881,45 @@ class DsaAlgorithm3(object):
     def _observe_pol(self):
 
         pass
+
+    def calc_completion(self):
+
+        s1 = pd.merge(
+                self.data.qastatus.reset_index(),
+                self.data.sblocks[
+                    ['OBSPROJECT_UID', 'SB_UID', 'OUS_ID', 'GOUS_ID',
+                     'MOUS_ID', 'array']],
+                on='SB_UID', how='right')
+        s1.fillna(0, inplace=True)
+
+        s2 = pd.merge(s1,
+                      self.data.sb_status[
+                          ['SB_UID', 'EXECOUNT', 'SB_STATE']],
+                      on='SB_UID')
+        s2['SB_Comp'] = s2.apply(
+                lambda x: 1 if
+                (x['SB_STATE'] == "FullyObserved" or
+                 x['Observed'] >= x['EXECOUNT'])
+                else 0, axis=1)
+
+        self.grouped_ous = s2.groupby(
+                ['OBSPROJECT_UID', 'GOUS_ID']).aggregate(
+                {'SB_UID': pd.np.count_nonzero,
+                 'SB_Comp': pd.np.sum,
+                 'EXECOUNT': pd.np.sum,
+                 'Observed': pd.np.sum}).reset_index()
+
+        # grouped_proj = grouped_ous.groupby(
+        #         'OBSPROJECT_UID').aggregate(
+        #         {'SB_UID': pd.np.sum,
+        #          'SB_Comp': pd.np.sum}).reset_index()
+
+        self.grouped_ous['GOUS_comp'] = (
+            1. * self.grouped_ous.SB_Comp / self.grouped_ous.SB_UID)
+        self.grouped_ous.columns = pd.Index(
+                [u'OBSPROJECT_UID', u'GOUS_ID', u'TotalEBObserved_GOUS',
+                 u'SB_Completed_GOUS', u'TotalExecount_GOUS', u'SB_Number_GOUS',
+                 u'GOUS_comp'], dtype='object')
 
 
 def calc_bl_ratio(arrayk, cycle, numbl, selconf, numant=None):

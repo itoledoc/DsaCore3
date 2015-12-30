@@ -273,6 +273,7 @@ class DsaDatabase3(object):
         self._load_sblocks_meta()
         self._load_schedblocks()
         self._add_imaging_param()
+        self.correct_specscan_times()
         self._create_extrainfo()
 
     def _add_imaging_param(self):
@@ -726,6 +727,7 @@ class DsaDatabase3(object):
         self._update_sblock_meta(obsproject_uid)
         self._update_schedblock(obsproject_uid)
         self._add_imaging_param()
+        self.correct_specscan_times()
         self._create_extrainfo()
 
     def _update_sciencegoal(self, obsproject_uid):
@@ -1225,3 +1227,27 @@ class DsaDatabase3(object):
                 columns=[rec[0] for rec in self._cursor.description])
 
         return ous
+
+    def correct_specscan_times(self):
+
+        sg_ous = self.sciencegoals.query(
+                'isSpectralScan == True').OUS_ID.unique()
+
+        times_1 = self.schedblocks.query(
+                'OUS_ID in @sg_ous and array == "TWELVE-M"')[
+            ['OBSPROJECT_UID', 'OUS_ID', 'estimatedTime', 'SB_UID']
+        ].groupby(['OBSPROJECT_UID', 'OUS_ID']).aggregate(
+                {'SB_UID': pd.np.count_nonzero, 'estimatedTime': pd.np.max}
+        ).reset_index()
+
+        times_1['estimatedTime'] = 1.3 * times_1.estimatedTime / times_1.SB_UID
+
+        if len(times_1) == 0:
+            return
+
+        aux = pd.merge(
+                self.schedblocks, times_1,
+                on=['OBSPROJECT_UID', 'OUS_ID'],
+                suffixes=['', '_t']).set_index('SB_UID', drop=False)
+        self.schedblocks.ix[aux.SB_UID.values, 'estimatedTime'] = \
+            aux.ix[aux.SB_UID.values, 'estimatedTime_t']

@@ -11,8 +11,12 @@ import warnings
 from sqlalchemy import create_engine
 from astropy.utils.data import download_file
 from astropy.utils import iers
-iers.IERS.iers_table = iers.IERS_A.open(
-    download_file(iers.IERS_A_URL, cache=True))
+try:
+    iers.IERS.iers_table = iers.IERS_A.open(
+        download_file(iers.IERS_A_URL, cache=True))
+except OSError:
+    iers.IERS.iers_table = iers.IERS_A.open(
+        download_file(iers.IERS_A_URL, cache=False))
 warnings.simplefilter(action="ignore", category=RuntimeWarning)
 
 engine = create_engine(

@@ -164,6 +164,16 @@ class DsaDatabase3(object):
         self.qastatus['ebTime'] = self.aqua_execblock.query(
                 'SE_STATUS == "SUCCESS"').groupby('SB_UID').delta.mean()
 
+        last_info = self.aqua_execblock.query(
+            'delta >= 0.2 and SE_STATUS == "SUCCESS" and '
+            'QA0STATUS in ["Pass", "Unset"]').sort_values(
+            by='STARTTIME', ascending=True
+        ).drop_duplicates('SB_UID',  keep='last').copy()
+
+        self.qastatus['last_observed'] = last_info['STARTTIME']
+        self.qastatus['last_qa0'] = last_info['QA0STATUS']
+        self.qastatus['last_status'] = last_info['SE_STATUS']
+
         # Query for Executives
         self._sql_executive = str(
             "SELECT PROJECTUID as OBSPROJECT_UID, ASSOCIATEDEXEC "
@@ -241,11 +251,11 @@ class DsaDatabase3(object):
         ).set_index('CODE', drop=False)
 
         # print(len(self._df1.query('PRJ_STATUS not in @status')))
-
-        self.projects = pd.merge(
-            self._df1.query('PRJ_STATUS not in @status'), self.executive,
-            on='OBSPROJECT_UID'
-        ).set_index('CODE', drop=False)
+        #
+        # self.projects = pd.merge(
+        #     self._df1.query('PRJ_STATUS not in @status'), self.executive,
+        #     on='OBSPROJECT_UID'
+        # ).set_index('CODE', drop=False)
 
         self.projects['xmlfile'] = self.projects.apply(
             lambda r: r['OBSPROJECT_UID'].replace('://', '___').replace(
@@ -1118,6 +1128,18 @@ class DsaDatabase3(object):
         self.qastatus['ebTime'] = self.aqua_execblock.query(
                 'SE_STATUS == "SUCCESS" and QA0STATUS != ["Fail", "SemiPass"]'
         ).groupby('SB_UID').delta.mean()
+
+        last_info = self.aqua_execblock.query(
+            'delta >= 0.2 and SE_STATUS == "SUCCESS" and '
+            'QA0STATUS in ["Pass", "Unset"]').sort_values(
+            by='STARTTIME', ascending=True
+        ).drop_duplicates('SB_UID',  keep='last').copy()
+
+        self.qastatus['last_observed'] = last_info['STARTTIME']
+        self.qastatus['last_qa0'] = last_info['QA0STATUS']
+        self.qastatus['last_status'] = last_info['SE_STATUS']
+
+
 
         self._cursor.execute(self._sql_sbstates)
         self.sb_status = pd.DataFrame(

@@ -659,7 +659,8 @@ class DsaAlgorithm3(object):
         self.master_dsa_df = pd.merge(
             self.master_dsa_df,
             self.data.qastatus[
-                ['Unset', 'Pass', 'Observed', 'SemiPass', 'ebTime']],
+                ['Unset', 'Pass', 'Observed', 'SemiPass', 'ebTime',
+                 'last_observed', 'last_qa0', 'last_status']],
             left_on='SB_UID', right_index=True, how='left')
 
         self.master_dsa_df.Unset.fillna(0, inplace=True)

@@ -84,9 +84,8 @@ visits.to_sql('sgvisits_tableau', engine, index_label='SBUID',
 temp_param.to_sql('temp_param_tableau', engine, index_label='SBUID',
                   if_exists='replace')
 
-dsa.data.aqua_execblock.to_sql(
-    'aquashift_tableau', engine, index_label='SBUID',
-    if_exists='replace')
+dsa.data.aqua_execblock.to_sql('aqua_tableau', engine, index_label='SBUID',
+                               if_exists='replace')
 
 datas._cursor.close()
 datas._connection.close()

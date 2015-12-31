@@ -5,8 +5,6 @@ import warnings
 
 warnings.simplefilter(action = "ignore", category = RuntimeWarning)
 
-
-
 datas = wto.DsaDatabase3(path='/users/aod/.cycle3pt/', loadp1=False)
 allsbC3 = pd.merge(
     pd.merge(

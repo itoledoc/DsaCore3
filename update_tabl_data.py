@@ -22,17 +22,17 @@ except KeyError:
     path = os.environ['HOME'] + '/.apdm_'
 
 try:
-    if time.time() - os.path.getmtime(path + 'tabl_all/') > 3600.:
+    if time.time() - os.path.getmtime(path + '_tabl_all/') > 3600.:
         refr = True
 except OSError:
-    os.mkdir(path + 'tabl_all/')
+    os.mkdir(path + '_tabl_all/')
     refr = True
 
 try:
-    datas = Data.DsaDatabase3(refresh_apdm=refr, path=path + 'tabl_all/',
+    datas = Data.DsaDatabase3(refresh_apdm=refr, path=path + '_tabl_all/',
                               allc2=False, loadp1=False)
 except IOError:
-    datas = Data.DsaDatabase3(path=path + 'tabl_all/',
+    datas = Data.DsaDatabase3(path=path + '_tabl_all/',
                               allc2=False, loadp1=False)
 
 dsa = Dsa.DsaAlgorithm3(datas)

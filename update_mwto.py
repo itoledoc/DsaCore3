@@ -59,7 +59,8 @@ scorer = dsa.master_dsa_df.apply(
 dsa.master_dsa_df['allconfs'] = dsa.obs_param.apply(
     lambda x: ','.join(
         [str(x['C36_1']), str(x['C36_2']), str(x['C36_3']), str(x['C36_4']),
-         str(x['C36_5']), str(x['C36_7']), str(x['C36_8'])]), axis=1)
+         str(x['C36_5']), str(x['C36_6']), str(x['C36_7']), str(x['C36_8'])]),
+    axis=1)
 
 scorer.to_sql('scorer_wto_test', engine, index_label='SBUID',
               if_exists='replace')

@@ -522,9 +522,9 @@ class DsaAlgorithm3(object):
 
         if len(cpol) > 0:
             ha = self._time_astropy.sidereal_time('apparent') - cpol.ra
-            polarization['HA'] = ha.wrap_at(180 * u.degree).value
-            polarization['RAh'] = cpol.ra.hour
-            polarization['elev'] = cpol.transform_to(
+            polarization['HA_pol'] = ha.wrap_at(180 * u.degree).value
+            polarization['RAh_pol'] = cpol.ra.hour
+            polarization['elev_pol'] = cpol.transform_to(
                 AltAz(obstime=self._time_astropy, location=ALMA)).alt.value
             parall = pd.np.arctan(
                     pd.np.sin(ha.radian) /
@@ -535,11 +535,11 @@ class DsaAlgorithm3(object):
             polarization['parallactic'] = pd.np.degrees(parall)
             corr_el = ((polarization.ephem != 'N/A') &
                        (polarization.ephem != 'OK'))
-            polarization.ix[corr_el, 'elev'] = -90.
-            polarization.ix[corr_el, 'HA'] = -24.
+            polarization.ix[corr_el, 'elev_pol'] = -90.
+            polarization.ix[corr_el, 'HA_pol'] = -24.
             self.polarization = polarization
             self.selection_df.loc[
-                polarization[polarization.elev < 20].SB_UID.values, 'selElev'
+                polarization[polarization.elev_pol < 20].SB_UID.values, 'selElev'
             ] = False
 
         self.selection_df['selHA'] = (

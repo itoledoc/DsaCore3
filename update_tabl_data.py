@@ -59,13 +59,14 @@ scorer = dsa.master_dsa_df.apply(
 dsa.master_dsa_df['allconfs'] = dsa.obs_param.apply(
     lambda x: ','.join(
         [str(x['C36_1']), str(x['C36_2']), str(x['C36_3']), str(x['C36_4']),
-         str(x['C36_5']), str(x['C36_7']), str(x['C36_8'])]), axis=1)
+         str(x['C36_5']), str(x['C36_6']), str(x['C36_7']), str(x['C36_8'])]),
+    axis=1)
 
 dsa.inputs.to_sql('inputs_tableau', engine, index_label='Cycle',
                   if_exists='replace')
 print('inputs written')
 dsa.master_dsa_df.to_sql('master_tableau', engine, index_label='SBUID',
-                        if_exists='replace')
+                         if_exists='replace')
 print('master written')
 dsa.obs_param.to_sql('staticparam_tableau', engine, index_label='SBUID',
                      if_exists='replace')
@@ -82,6 +83,10 @@ visits.to_sql('sgvisits_tableau', engine, index_label='SBUID',
               if_exists='replace')
 temp_param.to_sql('temp_param_tableau', engine, index_label='SBUID',
                   if_exists='replace')
+
+dsa.data.aqua_execblock.to_sql(
+    'aquashift_tableau', engine, index_label='SBUID',
+    if_exists='replace')
 
 datas._cursor.close()
 datas._connection.close()

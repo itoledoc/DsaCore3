@@ -526,6 +526,13 @@ class DsaAlgorithm3(object):
             polarization['RAh'] = cpol.ra.hour
             polarization['elev'] = cpol.transform_to(
                 AltAz(obstime=self._time_astropy, location=ALMA)).alt.value
+            parall = pd.np.arctan(
+                    pd.np.sin(ha.radian) /
+                    (pd.np.tan(ALMA.latitude.radian) *
+                     pd.np.cos(cpol.dec.radian) -
+                     pd.np.sin(cpol.dec.radian) * pd.np.cos(ha.radian)
+                     ))
+            polarization['parallactic'] = pd.np.degrees(parall)
             corr_el = ((polarization.ephem != 'N/A') &
                        (polarization.ephem != 'OK'))
             polarization.ix[corr_el, 'elev'] = -90.

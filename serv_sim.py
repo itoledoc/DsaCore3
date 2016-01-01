@@ -71,7 +71,7 @@ class DSACoreService(xmlrpc.XMLRPC):
             self.dsa.static_param()
 
         self.dsa.selector(array_kind=array_kind, minha=minha, maxha=maxha,
-                          conf=conf, array_id=array_id,
+                          conf=conf, array_id=array_id, letterg=("A", "B"),
                           pwv=pwv, horizon=horizon, numant=numant,
                           bands=bands)
         scorer = self.dsa.master_dsa_df.apply(
@@ -166,12 +166,16 @@ class DSACoreService(xmlrpc.XMLRPC):
                 x['EXECOUNT'], x['PRJ_SCIENTIFIC_RANK'], x['DC_LETTER_GRADE'],
                 x['CYCLE'], x['HA']), axis=1)
 
-        fin = pd.merge(
-                pd.merge(
-                    self.dsa.master_dsa_df,
-                    self.dsa.selection_df, on='SB_UID'),
-                scorer.reset_index(), on='SB_UID').set_index(
-            'SB_UID', drop=False).sort('Score', ascending=0)
+        try:
+            fin = pd.merge(
+                    pd.merge(
+                        self.dsa.master_dsa_df,
+                        self.dsa.selection_df, on='SB_UID'),
+                    scorer.reset_index(), on='SB_UID').set_index(
+                'SB_UID', drop=False).sort('Score', ascending=0)
+        except KeyError:
+            print("No results?")
+            return None
 
         return fin.to_json(orient='index')
 

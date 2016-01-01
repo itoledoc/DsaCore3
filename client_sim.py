@@ -53,16 +53,21 @@ def simulate_day(
             pwv_sim = float(pwvf_inter.ix[time_sim, 'pwv'])
 
         if first:
-            r = rundsa(array_kind=arrayfamily, array_id=arrayid,
-                       conf=configuration, pwv=pwv_sim,
-                       timestring=time_sim.strftime('%Y-%m-%d %H:%M:%S'),
-                       update=True).head(1)
+            try:
+                r = rundsa(array_kind=arrayfamily, array_id=arrayid,
+                           conf=configuration, pwv=pwv_sim,
+                           timestring=time_sim.strftime('%Y-%m-%d %H:%M:%S'),
+                           update=True).head(1)
+            except:
+                print("No results?")
+                r = None
 
-            if len(r) == 0:
+            if r is None:
                 time_sim += dt.timedelta(seconds=900)
                 first = True
                 print time_sim, pwv_sim
                 continue
+
             r['pwv'] = pwv_sim
             r['date_sim'] = time_sim
             est_time = (r.estimatedTime / r.EXECOUNT).values[0]
@@ -70,10 +75,14 @@ def simulate_day(
             first = False
 
         else:
-            r2 = rundsa(array_kind=arrayfamily, array_id=arrayid,
-                        conf=configuration, pwv=pwv_sim,
-                        timestring=time_sim.strftime('%Y-%m-%d %H:%M:%S')).head(1)
-            if len(r2) == 0:
+            try:
+                r2 = rundsa(array_kind=arrayfamily, array_id=arrayid,
+                            conf=configuration, pwv=pwv_sim,
+                            timestring=time_sim.strftime('%Y-%m-%d %H:%M:%S')).head(1)
+            except:
+                print("No results?")
+                r2 = None
+            if r2 is None:
                 time_sim += dt.timedelta(seconds=900)
                 print time_sim, pwv_sim
                 continue
@@ -108,8 +117,12 @@ def rundsa(
 
     r = client.run(array_kind, bands, conf, cal_blratio, numant, array_id,
                    horizon, minha, maxha, pwv, timestring, update)
-
-    return pd.read_json(r, orient='index').sort('Score', ascending=False)
+    try:
+        return pd.read_json(r, orient='index').sort('Score', ascending=False)
+    except KeyError:
+        print len(r)
+        print r
+        return None
 
 
 def rundsa_full(

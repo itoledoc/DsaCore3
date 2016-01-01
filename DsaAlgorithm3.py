@@ -582,7 +582,8 @@ class DsaAlgorithm3(object):
         self.calc_completion()
         self.master_dsa_df = pd.merge(
             self.master_dsa_df,
-            self.grouped_ous[['OBSPROJECT_UID', 'GOUS_ID', 'GOUS_comp']],
+            self.grouped_ous[['OBSPROJECT_UID', 'GOUS_ID', 'GOUS_comp',
+                              'proj_comp']],
             on=['OBSPROJECT_UID', 'GOUS_ID'],
             how='left'
         )
@@ -925,17 +926,21 @@ class DsaAlgorithm3(object):
                  'EXECOUNT': pd.np.sum,
                  'Observed': pd.np.sum}).reset_index()
 
-        # grouped_proj = grouped_ous.groupby(
-        #         'OBSPROJECT_UID').aggregate(
-        #         {'SB_UID': pd.np.sum,
-        #          'SB_Comp': pd.np.sum}).reset_index()
-
         self.grouped_ous['GOUS_comp'] = (
             1. * self.grouped_ous.SB_Comp / self.grouped_ous.SB_UID)
         self.grouped_ous.columns = pd.Index(
                 [u'OBSPROJECT_UID', u'GOUS_ID', u'TotalEBObserved_GOUS',
                  u'SB_Completed_GOUS', u'TotalExecount_GOUS', u'SB_Number_GOUS',
                  u'GOUS_comp'], dtype='object')
+        gp = self.grouped_ous.groupby(
+                'OBSPROJECT_UID').aggregate(
+                {'GOUS_ID': pd.np.count_nonzero, 'GOUS_comp': pd.np.sum})
+        gp['proj_comp'] = 1. * gp.GOUS_comp / gp.GOUS_ID
+        self.grouped_ous = pd.merge(
+            self.grouped_ous,
+            gp.reset_index()[['OBSPROJECT_UID', 'proj_comp']],
+            on='OBSPROJECT_UID', how='left'
+        )
 
 
 def calc_bl_ratio(arrayk, cycle, numbl, selconf, numant=None):

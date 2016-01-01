@@ -27,8 +27,8 @@ def calc_cond_score(pwv, maxpwvc, fraction):
 
     else:
         x = frac - 1
-        if frac <= 1.3:
-            sb_cond_score = (1. - (x / 0.3) ** 3.) * 10. * pwv_corr
+        if frac <= 1.4:
+            sb_cond_score = (1. - (x / 0.4) ** 3.) * 10. * pwv_corr
         else:
             sb_cond_score = 0.
 
@@ -63,7 +63,10 @@ def calc_array_score(name, array_kind, ar, dec, array_ar_sb, minar, maxar):
         if arcorr < 0.075:
             arcorr = 0.075
 
-        if 0.9 * arcorr <= array_ar_sb <= 1.1 * arcorr:
+        if (array_ar_sb < minar) or (array_ar_sb > maxar):
+            sb_array_score = -1.
+
+        elif 0.9 * arcorr <= array_ar_sb <= 1.1 * arcorr:
             sb_array_score = 10.
 
         elif 0.8 * arcorr < array_ar_sb <= 1.2 * arcorr:
@@ -73,7 +76,7 @@ def calc_array_score(name, array_kind, ar, dec, array_ar_sb, minar, maxar):
             l = 0.8 * arcorr - minar
             sb_array_score = ((array_ar_sb - minar) / l) * 8.0
 
-        elif array_ar_sb > 1.2 * arcorr:
+        elif (array_ar_sb > 1.2 * arcorr):
             l = arcorr * 1.2 - maxar
             try:
                 s = 8. / l

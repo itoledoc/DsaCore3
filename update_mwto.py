@@ -58,7 +58,7 @@ dsa.selection_df['date'] = str(dsa._ALMA_ephem.date)
 dsa.selection_df['arrayname'] = dsa.arrays.iloc[0, 3]
 scorer = dsa.master_dsa_df.apply(
     lambda x: WtoScor.calc_all_scores(
-        pwv, x['maxPWVC'], x['Exec. Frac'], x['sbName'], x['array'], x['ARcor'],
+        pwv, x['maxPWVC'], x['tsys_ratio'], x['sbName'], x['array'], x['ARcor'],
         x['DEC'], x['array_ar_cond'], x['minAR'], x['maxAR'], x['Observed'],
         x['EXECOUNT'], x['PRJ_SCIENTIFIC_RANK'], x['DC_LETTER_GRADE'],
         x['CYCLE'], x['HA']), axis=1)

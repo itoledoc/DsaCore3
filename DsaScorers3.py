@@ -56,12 +56,15 @@ def calc_array_score(name, array_kind, ar, dec, array_ar_sb, minar, maxar):
         #     print("WTF??? %s" % name)
 
         if name.endswith('_TC'):
-            arcorr = minar / 0.8
+            arcorr = ar
 
         if arcorr > 3.35:
             arcorr = 3.35
         if arcorr < 0.075:
             arcorr = 0.075
+
+        if maxar <= array_ar_sb < maxar * 1.3:
+            maxar *= 1.3
 
         if (array_ar_sb < minar) or (array_ar_sb > maxar):
             sb_array_score = -1.

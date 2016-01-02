@@ -10,7 +10,7 @@ from twisted.web import xmlrpc, server
 from astropy.utils.data import download_file
 from astropy.utils import iers
 from sqlalchemy import create_engine
-engine = create_engine('postgresql://wto:wto2020@dmg02.sco.alma.cl:5432/aidadb')
+engine = create_engine('postgresql://dsacore:dsa2020@tableau.alma.cl:5432/dsa_data')
 
 
 class RefreshThread(threading.Thread):
@@ -51,9 +51,6 @@ class DSACoreService(xmlrpc.XMLRPC):
 
     def __init__(self):
         xmlrpc.XMLRPC.__init__(self)
-        self.engine = create_engine(
-                'postgresql://wto:wto2020@dmg02.sco.alma.cl:5432/aidadb')
-
         iers.IERS.iers_table = iers.IERS_A.open(
             download_file(iers.IERS_A_URL, cache=True))
         self.lock = threading.Lock()
@@ -92,8 +89,6 @@ class DSACoreService(xmlrpc.XMLRPC):
 
         if numant == 0 or array_kind == 'TWELVE-M':
             numant = None
-
-
 
         if timestring != '':
             dsa.set_time(timestring)  # YYYY-MM-DD HH:mm:SS

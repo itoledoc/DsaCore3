@@ -71,6 +71,7 @@ def simulate_day(
             r['pwv'] = pwv_sim
             r['date_sim'] = time_sim
             est_time = (r.estimatedTime / r.EXECOUNT).values[0]
+            r['sim_timelapse'] = est_time
             sb_uid = r.SB_UID.values[0]
             first = False
 
@@ -78,7 +79,8 @@ def simulate_day(
             try:
                 r2 = rundsa(array_kind=arrayfamily, array_id=arrayid,
                             conf=configuration, pwv=pwv_sim,
-                            timestring=time_sim.strftime('%Y-%m-%d %H:%M:%S')).head(1)
+                            timestring=time_sim.strftime('%Y-%m-%d %H:%M:%S')
+                            ).head(1)
             except:
                 print("No results?")
                 r2 = None
@@ -89,11 +91,13 @@ def simulate_day(
             r2['pwv'] = pwv_sim
             r2['date_sim'] = time_sim
             est_time = (r2.estimatedTime / r2.EXECOUNT).values[0]
+            r2['sim_timelapse'] = est_time
             sb_uid = r2.SB_UID.values[0]
             r = pd.concat([r, r2])
+
         client.add_observation(str(sb_uid))
-        if est_time > 3:
-            est_time = 3.
+        if est_time > 2.5:
+            est_time = 2.2
         time_sim += dt.timedelta(hours=est_time)
 
     return r
@@ -118,7 +122,8 @@ def rundsa(
     r = client.run(array_kind, bands, conf, cal_blratio, numant, array_id,
                    horizon, minha, maxha, pwv, timestring, update)
     try:
-        return pd.read_json(r, orient='index').sort('Score', ascending=False)
+        return pd.read_json(r, orient='index').sort_values(by='Score',
+                                                           ascending=False)
     except KeyError:
         print len(r)
         print r
@@ -143,7 +148,8 @@ def rundsa_full(
     r = client.run_full(array_kind, bands, conf, cal_blratio, numant, array_id,
                         horizon, minha, maxha, pwv, timestring)
 
-    return pd.read_json(r, orient='index').sort('Score', ascending=False)
+    return pd.read_json(r, orient='index').sort_values(by='Score',
+                                                           ascending=False)
 
 
 def get_arrays(array_kind):

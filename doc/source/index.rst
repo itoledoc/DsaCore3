@@ -11,11 +11,13 @@ Contents:
 .. toctree::
    :maxdepth: 2
 
+   intro
    readme
+   architecture
+   dsa_selector
+   dsa_scorer
    use_cases
    dsa_api
-
-
 
 
 Indices and tables

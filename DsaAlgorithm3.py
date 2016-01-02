@@ -415,9 +415,8 @@ class DsaAlgorithm3(object):
 
                 self.selection_df['selConf'] = self.master_dsa_df.apply(
                     lambda x: True if (x['array_ar_cond'] > x['minAR']) and
-                                      (x['array_ar_cond'] < x['maxAR']) else
-                    False, axis=1
-                )
+                                      (x['array_ar_cond'] < x['maxAR'] * 1.2)
+                    else False, axis=1)
 
                 self.master_dsa_df['bl_ratio'] = self.master_dsa_df.apply(
                     lambda x: 1. / calc_bl_ratio(

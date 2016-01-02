@@ -72,6 +72,7 @@ class DSACoreService(xmlrpc.XMLRPC):
         self.dsa.selector(array_kind=array_kind, minha=minha, maxha=maxha,
                           conf=conf, array_id=array_id, letterg=("A", "B", "C"),
                           pwv=pwv, horizon=horizon, numant=numant,
+                          sb_status=("Ready", "Running"),
                           bands=bands)
         scorer = self.dsa.master_dsa_df.apply(
             lambda x: DsaScore.calc_all_scores(

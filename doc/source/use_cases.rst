@@ -4,9 +4,9 @@
    contain the root `toctree` directive.
 
 
-******************
-DSA Core Algorithm
-******************
+********
+DSA Core
+********
 
 
 Query Data

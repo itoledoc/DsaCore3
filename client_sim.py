@@ -148,8 +148,8 @@ def rundsa_full(
     r = client.run_full(array_kind, bands, conf, cal_blratio, numant, array_id,
                         horizon, minha, maxha, pwv, timestring)
 
-    return pd.read_json(r, orient='index').sort_values(by='Score',
-                                                           ascending=False)
+    return pd.read_json(r, orient='index').sort_values(
+            by='Score', ascending=False)
 
 
 def get_arrays(array_kind):

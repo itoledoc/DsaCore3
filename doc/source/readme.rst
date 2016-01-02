@@ -37,8 +37,8 @@ Environment variables to be loaded
     export PYTHONPATH="$PYTHONPATH:/path/to/DsaCore3"
 
 
-Initialization of the Wto class
-===============================
+Initialization of the DSA classes
+=================================
 
 ::
 

@@ -96,6 +96,7 @@ def simulate_day(
                 time_sim += dt.timedelta(seconds=900)
                 first = True
                 print time_sim, pwv_sim
+                dsa.set_time(time_sim.strftime('%Y-%m-%d %H:%M'))
                 continue
 
             results['pwv'] = pwv_sim
@@ -114,9 +115,10 @@ def simulate_day(
                 print e
                 print("No results?")
                 r2 = None
-            if r2 is None or len(results) == 0:
+            if r2 is None or len(r2) == 0:
                 time_sim += dt.timedelta(seconds=900)
                 print time_sim, pwv_sim
+                dsa.set_time(time_sim.strftime('%Y-%m-%d %H:%M'))
                 continue
             r2['pwv'] = pwv_sim
             r2['date_sim'] = time_sim
@@ -215,7 +217,7 @@ if __name__ == '__main__':
     else:
         inittime = dt.datetime.utcnow()
 
-    refr = True
+    refr = False
     try:
         if time.time() - os.path.getmtime(path + '_onesim/') > 3600.:
             refr = True

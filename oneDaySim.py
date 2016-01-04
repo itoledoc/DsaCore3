@@ -252,7 +252,7 @@ if __name__ == '__main__':
     r, pwv = simulate_day(datas, inittime, opts.timelapse, opts.array_family,
                           arrayid=arrayid, configuration=conf, lgrades=grades)
     if opts.database:
-        r.to_sql('oneday', engine, index_label='SB_UID', if_exists='replace')
-        pwv.to_sql('pwvsim', engine, index_label='SB_UID', if_exists='replace')
+        r.to_sql('oneday', engine, index_label='SBUID', if_exists='replace')
+        pwv.to_sql('pwvsim', engine, index_label='SBUID', if_exists='replace')
     else:
         r.to_csv('simulation_result.csv', index=False)

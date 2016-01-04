@@ -11,25 +11,69 @@ DSA Selectors
 Inputs
 ======
 
-1. Array Family
+Array Family (*array_kind*)
+---------------------------
 
-2. Project States
+Can be any of the following:
 
-3. SB States
+   * TWELVE-M
+   * SEVEN-M
+   * TP-Array
 
-4. Cycles
+Project States (*prj_status*)
+-----------------------------
 
-5. Priorities
+By default, only projects in State *Ready* or *InProgress*
 
-6. Bands
+SB States (*sb_status*)
+-----------------------
 
-7. Std. Configuration or Array ID
+By default, select only projects with statuses *Ready*, *Suspended*, *Waiting*,
+*Phase2Submitted* and *CalibratorCheck*.
 
-8. Elevation Limit
 
-9. Hour Angle Limits
+Cycles (*cycle*)
+----------------
 
-10. Precipitable Water Vapor
+By default are 2013.A,, 2013.1, 2015.1 and 2015.A. For Cycle 2, only grade A
+projects are selected.
+
+
+Priorities (*letterg*)
+----------------------
+
+By default projects with grades A, B (high priority) and C (fillers) are
+selected
+
+Bands (*bands*)
+---------------
+
+List with the bands to be used by the selector. By defaul all bands are allowed.
+
+
+Std. Configuration or Array ID (*conf* or *array_id*)
+-----------------------------------------------------
+
+Is is possible to use either an Array that has been created in the last 24
+hours in the AOS-STE, or standard configurations. By default, for 12m, it will
+use the last automatic Array created with more than 28 12m antennas.
+
+Elevation Limit (*horizon*)
+---------------------------
+
+Minimum source elevation to be selected. By default 20 degrees.
+
+Hour Angle Limits (*minha* and *maxha*)
+---------------------------------------
+
+Minimum and maximum hour angles a source must be to be considered. By defult
+they are -3 and +3 hours.
+
+Precipitable Water Vapor (*pwv*)
+--------------------------------
+
+Precipitable water vapor to be use by the selector. In the online mode, is by
+default the latest ALMA measurement calculated by the `plot_pwvs.py` script.
 
 
 Selectors

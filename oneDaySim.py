@@ -133,7 +133,7 @@ def simulate_day(
         time_sim += dt.timedelta(hours=est_time)
         dsa.set_time(time_sim.strftime('%Y-%m-%d %H:%M'))
 
-    return results
+    return results, pwvf
 
 
 def rundsa(dsa_instance,
@@ -209,6 +209,8 @@ if __name__ == '__main__':
     parser.add_option('-c', '--conf', type=str, default='last')
     parser.add_option('--hp', action='store_true', dest='highprio',
                       default=False)
+    parser.add_option('-D', action='store_true', dest='database',
+                      default=False)
 
     opts, args = parser.parse_args()
 
@@ -218,18 +220,21 @@ if __name__ == '__main__':
         inittime = dt.datetime.utcnow()
 
     refr = False
+    suffix = '_onesim/'
+    if opts.database:
+        suffix = '_onesim_tab/'
     try:
-        if time.time() - os.path.getmtime(path + '_onesim/') > 3600.:
+        if time.time() - os.path.getmtime(path + suffix) > 3600.:
             refr = True
     except OSError:
-        os.mkdir(path + '_onesim/')
+        os.mkdir(path + suffix)
         refr = True
 
     try:
-        datas = Data.DsaDatabase3(refresh_apdm=refr, path=path + '_onesim/',
+        datas = Data.DsaDatabase3(refresh_apdm=refr, path=path + suffix,
                                   allc2=False, loadp1=False)
     except IOError:
-        datas = Data.DsaDatabase3(path=path + '_onesim/',
+        datas = Data.DsaDatabase3(path=path + suffix,
                                   allc2=False, loadp1=False)
 
     conf = ''
@@ -244,6 +249,10 @@ if __name__ == '__main__':
     if opts.highprio:
         grades = ("A", "B")
 
-    r = simulate_day(datas, inittime, opts.timelapse, opts.array_family,
-                     arrayid=arrayid, configuration=conf, lgrades=grades)
-    r.to_csv('simulation_result.csv', index=False)
+    r, pwv = simulate_day(datas, inittime, opts.timelapse, opts.array_family,
+                          arrayid=arrayid, configuration=conf, lgrades=grades)
+    if opts.database:
+        r.to_sql('oneday', engine, index_label='SB_UID', if_exists='replace')
+        pwv.to_sql('pwvsim', engine, index_label='SB_UID', if_exists='replace')
+    else:
+        r.to_csv('simulation_result.csv', index=False)

@@ -17,9 +17,13 @@ TIME.delta_ut1_utc = 0
 TIME.location = ALMA
 
 ALMA1 = ephem.Observer()
+# noinspection PyUnresolvedReferences
 ALMA1.lat = '-23.0262015'
+# noinspection PyUnresolvedReferences
 ALMA1.long = '-67.7551257'
+# noinspection PyUnresolvedReferences
 ALMA1.elev = 5060
+# noinspection PyUnresolvedReferences
 ALMA1.horizon = ephem.degrees(str('20'))
 
 home = os.environ['HOME']
@@ -90,7 +94,7 @@ CYC_NA = {'2013.A': 34,
           '2015.A': 36}
 
 
-# noinspection PyAttributeOutsideInit
+# noinspection PyAttributeOutsideInit,PyProtectedMember,PyUnresolvedReferences
 class DsaAlgorithm3(object):
     """
     Input is instance from DsaDatabase, adds the methods for selection and
@@ -285,7 +289,6 @@ class DsaAlgorithm3(object):
         :param minha:
         :param maxha:
         :param pwv:
-        :param mintrans:
         :param sim:
         :return:
         """
@@ -347,7 +350,7 @@ class DsaAlgorithm3(object):
 
         self.selection_df['selConf'] = True
 
-        # Array Configuraton Selection (12m)
+        # Array Configuration Selection (12m)
 
         if array_kind == "TWELVE-M":
 
@@ -413,7 +416,7 @@ class DsaAlgorithm3(object):
                         self.master_dsa_df['num_bl_use'] = \
                             self.arr_cache['num_bl_use']
 
-                    except:
+                    except AttributeError:
                         ar, numbl, numant, ruv = self._get_bl_prop(array_id)
                         self.master_dsa_df[['array_ar_cond', 'num_bl_use']] = (
                             self.master_dsa_df.apply(
@@ -475,6 +478,7 @@ class DsaAlgorithm3(object):
             # Until we have a clear idea on how to handle TP ampcals, removing
             # them from the DSA output
 
+            # noinspection PyUnusedLocal
             selsb = self.master_dsa_df.query(
                     'array == "TP-Array"').SB_UID.unique()
             selsb1 = self.master_dsa_df[
@@ -560,8 +564,8 @@ class DsaAlgorithm3(object):
             polarization.ix[corr_el, 'HA_pol'] = -24.
             self.polarization = polarization
             self.selection_df.loc[
-                polarization[polarization.elev_pol < 20].SB_UID.values, 'selElev'
-            ] = False
+                polarization[polarization.elev_pol < 20].SB_UID.values,
+                'selElev'] = False
 
         self.selection_df['selHA'] = (
             (self.master_dsa_df.set_index('SB_UID').HA >= minha) &
@@ -641,7 +645,8 @@ class DsaAlgorithm3(object):
         self.inputs = pd.DataFrame(
             pd.np.array([lstdate0, lstdate1, lstdate2,
                          sunsetlst_h, sunriselst_h,
-                         sunsetlst_h + dt.timedelta(1), sunriselst_h + dt.timedelta(1)]),
+                         sunsetlst_h + dt.timedelta(1),
+                         sunriselst_h + dt.timedelta(1)]),
             index=['lst0', 'lst1', 'lst2', 'set1', 'rise1', 'set2', 'rise2'],
             columns=['2013.A']).transpose()
         self.inputs.ix['2013.1', :] = self.inputs.ix['2013.A', :]
@@ -650,6 +655,7 @@ class DsaAlgorithm3(object):
         ALMA1.date = savedate
         ALMA1.horizon = savehoriz
 
+    # noinspection PyTypeChecker
     def _aggregate_dfs(self):
 
         """
@@ -1049,4 +1055,3 @@ def calc_airmass(dec_el, transit=True):
         else:
             airmass = None
     return airmass
-

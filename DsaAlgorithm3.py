@@ -265,7 +265,8 @@ class DsaAlgorithm3(object):
                  horizon=20.,
                  minha=-3.,
                  maxha=3.,
-                 pwv=0.):
+                 pwv=0.,
+                 sim=False):
 
         """
 
@@ -285,6 +286,7 @@ class DsaAlgorithm3(object):
         :param maxha:
         :param pwv:
         :param mintrans:
+        :param sim:
         :return:
         """
         if float(pwv) > 8:
@@ -404,14 +406,32 @@ class DsaAlgorithm3(object):
                 if array_id == 'last':
                     array_id = self.arrays.iloc[0, 3]
 
-                ar, numbl, numant, ruv = self._get_bl_prop(array_id)
-                self.master_dsa_df[['array_ar_cond', 'num_bl_use']] = (
-                    self.master_dsa_df.apply(
-                        lambda x: self._get_sbbased_bl_prop(
-                            ruv, x['blmin'] * 0.9, x['blmax'] * 1.1,
-                            x['array']),
-                        axis=1)
-                )
+                if sim:
+                    try:
+                        self.master_dsa_df['array_ar_cond'] = \
+                            self.arr_cache['array_ar_cond']
+                        self.master_dsa_df['num_bl_use'] = \
+                            self.arr_cache['num_bl_use']
+
+                    except:
+                        ar, numbl, numant, ruv = self._get_bl_prop(array_id)
+                        self.master_dsa_df[['array_ar_cond', 'num_bl_use']] = (
+                            self.master_dsa_df.apply(
+                                lambda x: self._get_sbbased_bl_prop(
+                                    ruv, x['blmin'] * 0.9, x['blmax'] * 1.1,
+                                    x['array']),
+                                axis=1)
+                            )
+                    self.arr_cache = self.master_dsa_df[
+                        ['array_ar_cond', 'num_bl_use']].copy()
+                else:
+                    ar, numbl, numant, ruv = self._get_bl_prop(array_id)
+                    self.master_dsa_df[['array_ar_cond', 'num_bl_use']] = (
+                        self.master_dsa_df.apply(
+                            lambda x: self._get_sbbased_bl_prop(
+                                ruv, x['blmin'] * 0.9, x['blmax'] * 1.1,
+                                x['array']),
+                            axis=1))
 
                 self.selection_df['selConf'] = self.master_dsa_df.apply(
                     lambda x: True if

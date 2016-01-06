@@ -113,30 +113,30 @@ class DsaDatabase3(object):
             "AND aqua.EXECBLOCKUID = shift.SE_EB_UID")
 
         # noinspection SqlResolve
-        self._sqlqa0com = str(
-            "SELECT aqua.FINALCOMMENTID, "
-            "DBMS_LOB.SUBSTR(acom.CCOMMENT) as COMENT "
-            "FROM ALMA.AQUA_V_EXECBLOCK aqua, ALMA.AQUA_COMMENT acom "
-            "WHERE regexp_like (aqua.OBSPROJECTCODE, '^201[35]\..*\.[AST]') "
-            "AND aqua.FINALCOMMENTID = acom.COMMENTID"
-        )
+        # self._sqlqa0com = str(
+        #     "SELECT aqua.FINALCOMMENTID, "
+        #     "DBMS_LOB.SUBSTR(acom.CCOMMENT) as COMENT "
+        #     "FROM ALMA.AQUA_V_EXECBLOCK aqua, ALMA.AQUA_COMMENT acom "
+        #     "WHERE regexp_like (aqua.OBSPROJECTCODE, '^201[35]\..*\.[AST]') "
+        #     "AND aqua.FINALCOMMENTID = acom.COMMENTID"
+        # )
 
         self._cursor.execute(self._sqlqa0)
         self.aqua_execblock = pd.DataFrame(
             self._cursor.fetchall(),
-            columns=[rec[0] for rec in self._cursor.description])
+            columns=[rec[0] for rec in self._cursor.description]).set_index('SB_UID', drop=False)
 
-        self._cursor.execute(self._sqlqa0com)
-        self._execblock_comm = pd.DataFrame(
-            self._cursor.fetchall(),
-            columns=[rec[0] for rec in self._cursor.description]
-        ).set_index('FINALCOMMENTID', drop=False)
+        # self._cursor.execute(self._sqlqa0com)
+        # self._execblock_comm = pd.DataFrame(
+        #     self._cursor.fetchall(),
+        #     columns=[rec[0] for rec in self._cursor.description]
+        # ).set_index('FINALCOMMENTID', drop=False)
 
         # self.aqdeb = self.aqua_execblock.copy()
 
-        self.aqua_execblock = pd.merge(
-            self.aqua_execblock, self._execblock_comm, on='FINALCOMMENTID',
-            how='left').set_index('SB_UID', drop=False)
+        # self.aqua_execblock = pd.merge(
+        #     self.aqua_execblock, self._execblock_comm, on='FINALCOMMENTID',
+        #     how='left').set_index('SB_UID', drop=False)
 
         self.aqua_execblock['delta'] = (self.aqua_execblock.ENDTIME -
                                         self.aqua_execblock.STARTTIME)
@@ -1090,17 +1090,17 @@ class DsaDatabase3(object):
         self._cursor.execute(self._sqlqa0)
         self.aqua_execblock = pd.DataFrame(
             self._cursor.fetchall(),
-            columns=[rec[0] for rec in self._cursor.description])
+            columns=[rec[0] for rec in self._cursor.description]).set_index('SB_UID', drop=False)
 
-        self._cursor.execute(self._sqlqa0com)
-        self._execblock_comm = pd.DataFrame(
-            self._cursor.fetchall(),
-            columns=[rec[0] for rec in self._cursor.description]
-        ).set_index('FINALCOMMENTID', drop=False)
+        # self._cursor.execute(self._sqlqa0com)
+        # self._execblock_comm = pd.DataFrame(
+        #     self._cursor.fetchall(),
+        #     columns=[rec[0] for rec in self._cursor.description]
+        # ).set_index('FINALCOMMENTID', drop=False)
 
-        self.aqua_execblock = pd.merge(
-            self.aqua_execblock, self._execblock_comm, on='FINALCOMMENTID',
-            how='left').set_index('SB_UID', drop=False)
+        # self.aqua_execblock = pd.merge(
+        #     self.aqua_execblock, self._execblock_comm, on='FINALCOMMENTID',
+        #     how='left').set_index('SB_UID', drop=False)
 
         self.aqua_execblock['delta'] = (self.aqua_execblock.ENDTIME -
                                         self.aqua_execblock.STARTTIME)

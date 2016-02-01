@@ -5,12 +5,19 @@ import DsaScorers3 as DsaScore
 import pandas as pd
 import threading
 import time
+import logging
 
 from twisted.web import xmlrpc, server
 from astropy.utils.data import download_file
 from astropy.utils import iers
 from sqlalchemy import create_engine
+
+logging.basicConfig(format='%(asctime)s %(message)s')
+logging.getLogger().setLevel(logging.INFO)
+
 engine = create_engine('postgresql://dsacore:dsa2020@tableau.alma.cl:5432/dsa_data')
+
+
 
 
 class RefreshThread(threading.Thread):
@@ -54,6 +61,7 @@ class DSACoreService(xmlrpc.XMLRPC):
         iers.IERS.iers_table = iers.IERS_A.open(
             download_file(iers.IERS_A_URL, cache=True))
         self.lock = threading.Lock()
+        self.access_lock = threading.Lock()
         with self.lock:
             self.data = Data.DsaDatabase3(
                     refresh_apdm=True, allc2=False, loadp1=False)
@@ -72,10 +80,12 @@ class DSACoreService(xmlrpc.XMLRPC):
                    maxha=3.,
                    pwv=0.5,
                    timestring=''):
-
-        self.data.update_status()  # to be put on thread
+        logging.info('Starting algorithm run')
         with self.lock:
+            logging.info('Staring refreshing of data')
+            self.data.update_status()  # to be put on thread
             dsa = Dsa.DsaAlgorithm3(self.data)
+            logging.info('Completed refreshing of data')
 
         if conf == '' or array_kind != 'TWELVE-M':
             conf = None
@@ -97,10 +107,12 @@ class DSACoreService(xmlrpc.XMLRPC):
 
         dsa.write_ephem_coords()
         dsa.static_param()
+        logging.info('Starting selection')
         dsa.selector(array_kind=array_kind, minha=minha, maxha=maxha,
                      conf=conf, array_id=array_id,
                      pwv=pwv, horizon=horizon, numant=numant,
                      bands=bands)
+        logging.info('Completed selction')
 
         scorer = dsa.master_dsa_df.apply(
             lambda x: DsaScore.calc_all_scores(
@@ -218,8 +230,13 @@ class DSACoreService(xmlrpc.XMLRPC):
     def xmlrpc_get_pwv(self):
 
         pwvd = pd.read_sql('pwv_data', engine)
-        pwv = pwvd.pwv.values[0]
-        print pwvd.date.values[0] + ' ' + pwvd.time.values[0]
+        pwv = 8.0
+        try:
+            pwv = pwvd.pwv.values[0]
+            print pwvd.date.values[0] + ' ' + pwvd.time.values[0]
+        except Exception as ex:
+            print 'Error handling the request to get pwv values. Returning default'
+            print ex
         return float(pwv)
 
 if __name__ == '__main__':

@@ -148,9 +148,13 @@ class DsaDatabase3(object):
         # noinspection PyUnusedLocal
         hs = str(h)[:10].replace('/', '-')
 
+#        self.qastatus = self.aqua_execblock.query(
+#            'QA0STATUS in ["Unset", "Pass"] or '
+#            '(QA0STATUS == "SemiPass" and STARTTIME > @hs)').groupby(
+#            ['SB_UID', 'QA0STATUS']).QA0STATUS.count().unstack().fillna(0)
         self.qastatus = self.aqua_execblock.query(
-            'QA0STATUS in ["Unset", "Pass"] or '
-            '(QA0STATUS == "SemiPass" and STARTTIME > @hs)').groupby(
+            'QA0STATUS in ["Unset", "Pass"]'
+            ).groupby(
             ['SB_UID', 'QA0STATUS']).QA0STATUS.count().unstack().fillna(0)
 
         if 'Pass' not in self.qastatus.columns.values:
@@ -1112,9 +1116,13 @@ class DsaDatabase3(object):
         # noinspection PyUnusedLocal
         hs = str(h)[:10].replace('/', '-')
 
+#        self.qastatus = self.aqua_execblock.query(
+#            'QA0STATUS in ["Unset", "Pass"] or '
+#            '(QA0STATUS == "SemiPass" and STARTTIME > @hs)').groupby(
+#            ['SB_UID', 'QA0STATUS']).QA0STATUS.count().unstack().fillna(0)
         self.qastatus = self.aqua_execblock.query(
-            'QA0STATUS in ["Unset", "Pass"] or '
-            '(QA0STATUS == "SemiPass" and STARTTIME > @hs)').groupby(
+            'QA0STATUS in ["Unset", "Pass"]'
+            ).groupby(
             ['SB_UID', 'QA0STATUS']).QA0STATUS.count().unstack().fillna(0)
 
         if 'Pass' not in self.qastatus.columns.values:

@@ -49,19 +49,20 @@ dsa.static_param()
 pwv = pd.read_sql('pwv_data', engine).pwv.values[0]
 dsa.selector(
     minha=-3., maxha=3., letterg=['A', 'B', 'C'],
-    array_id='last', pwv=pwv)
+    conf=['C36-2'], pwv=pwv)
 dsa.selection_df['PWV now'] = pwv
 dsa.selection_df['PWV now date'] = (
     pd.read_sql('pwv_data', engine).date.values[0] + ' ' +
     pd.read_sql('pwv_data', engine).time.values[0])
 dsa.selection_df['date'] = str(dsa._ALMA_ephem.date)
-dsa.selection_df['arrayname'] = dsa.arrays.iloc[0, 3]
-scorer = dsa.master_dsa_df.apply(
-    lambda x: WtoScor.calc_all_scores(
-        pwv, x['maxPWVC'], x['Exec. Frac'], x['sbName'], x['array'], x['ARcor'],
-        x['DEC'], x['array_ar_cond'], x['minAR'], x['maxAR'], x['Observed'],
-        x['EXECOUNT'], x['PRJ_SCIENTIFIC_RANK'], x['DC_LETTER_GRADE'],
-        x['CYCLE'], x['HA']), axis=1)
+dsa.selection_df['arrayname'] = 'N/A'
+
+# scorer = dsa.master_dsa_df.apply(
+#     lambda x: WtoScor.calc_all_scores(
+#         pwv, x['maxPWVC'], x['Exec. Frac'], x['sbName'], x['array'], x['ARcor'],
+#         x['DEC'], x['array_ar_cond'], x['minAR'], x['maxAR'], x['Observed'],
+#         x['EXECOUNT'], x['PRJ_SCIENTIFIC_RANK'], x['DC_LETTER_GRADE'],
+#         x['CYCLE'], x['HA']), axis=1)
 
 dsa.master_dsa_df['allconfs'] = dsa.obs_param.apply(
     lambda x: ','.join(

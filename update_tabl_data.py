@@ -5,7 +5,6 @@ import os
 import pandas as pd
 import DsaDataBase3 as Data
 import DsaAlgorithm3 as Dsa
-import DsaScorers3 as WtoScor
 import warnings
 
 from sqlalchemy import create_engine

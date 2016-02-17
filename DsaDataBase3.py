@@ -26,9 +26,10 @@ PHASE_I_STATUS = ["Phase1Submitted", "Approved"]
 class DsaDatabase3(object):
 
     """
-    DsaDatabase3 is the class that stores the Projects and SB information in
-    dataframes, and it also has the methods to connect and query the OSF
-    archive for this info (ETL)
+    DsaDatabase3 is a class in charge of:
+        * Get APDM xml file from the archive
+        * Parse and extract the information from the xml files
+        * Store the APDM information in pandas DataFrames
 
     A default instance will use the directory found on the $DSA system variable,
     as a cache, and it will found the projects in the appropiate state for the
@@ -113,30 +114,31 @@ class DsaDatabase3(object):
             "AND aqua.EXECBLOCKUID = shift.SE_EB_UID")
 
         # noinspection SqlResolve
-        # self._sqlqa0com = str(
-        #     "SELECT aqua.FINALCOMMENTID, "
-        #     "DBMS_LOB.SUBSTR(acom.CCOMMENT) as COMENT "
-        #     "FROM ALMA.AQUA_V_EXECBLOCK aqua, ALMA.AQUA_COMMENT acom "
-        #     "WHERE regexp_like (aqua.OBSPROJECTCODE, '^201[35]\..*\.[AST]') "
-        #     "AND aqua.FINALCOMMENTID = acom.COMMENTID"
-        # )
+        self._sqlqa0com = str(
+            "SELECT aqua.FINALCOMMENTID, "
+            "DBMS_LOB.SUBSTR(acom.CCOMMENT, 200) as COMENT "
+            "FROM ALMA.AQUA_V_EXECBLOCK aqua, ALMA.AQUA_COMMENT acom "
+            "WHERE regexp_like (aqua.OBSPROJECTCODE, '^201[35]\..*\.[AST]') "
+            "AND aqua.FINALCOMMENTID = acom.COMMENTID"
+        )
 
         self._cursor.execute(self._sqlqa0)
         self.aqua_execblock = pd.DataFrame(
             self._cursor.fetchall(),
-            columns=[rec[0] for rec in self._cursor.description]).set_index('SB_UID', drop=False)
+            columns=[rec[0] for rec in self._cursor.description]
+        ).set_index('SB_UID', drop=False)
 
-        # self._cursor.execute(self._sqlqa0com)
-        # self._execblock_comm = pd.DataFrame(
-        #     self._cursor.fetchall(),
-        #     columns=[rec[0] for rec in self._cursor.description]
-        # ).set_index('FINALCOMMENTID', drop=False)
+        self._cursor.execute(self._sqlqa0com)
+        self._execblock_comm = pd.DataFrame(
+            self._cursor.fetchall(),
+            columns=[rec[0] for rec in self._cursor.description]
+        ).set_index('FINALCOMMENTID', drop=False)
 
-        # self.aqdeb = self.aqua_execblock.copy()
+        self.aqdeb = self.aqua_execblock.copy()
 
-        # self.aqua_execblock = pd.merge(
-        #     self.aqua_execblock, self._execblock_comm, on='FINALCOMMENTID',
-        #     how='left').set_index('SB_UID', drop=False)
+        self.aqua_execblock = pd.merge(
+            self.aqua_execblock, self._execblock_comm, on='FINALCOMMENTID',
+            how='left').set_index('SB_UID', drop=False)
 
         self.aqua_execblock['delta'] = (self.aqua_execblock.ENDTIME -
                                         self.aqua_execblock.STARTTIME)
@@ -144,14 +146,6 @@ class DsaDatabase3(object):
             lambda x: x['delta'].total_seconds() / 3600., axis=1
         )
 
-        h = ephem.Date(ephem.now() - 7.)
-        # noinspection PyUnusedLocal
-        hs = str(h)[:10].replace('/', '-')
-
-#        self.qastatus = self.aqua_execblock.query(
-#            'QA0STATUS in ["Unset", "Pass"] or '
-#            '(QA0STATUS == "SemiPass" and STARTTIME > @hs)').groupby(
-#            ['SB_UID', 'QA0STATUS']).QA0STATUS.count().unstack().fillna(0)
         self.qastatus = self.aqua_execblock.query(
             'QA0STATUS in ["Unset", "Pass"]'
             ).groupby(
@@ -161,8 +155,6 @@ class DsaDatabase3(object):
             self.qastatus['Pass'] = 0
         if 'Unset' not in self.qastatus.columns.values:
             self.qastatus['Unset'] = 0
-        if 'SemiPass' not in self.qastatus.columns.values:
-            self.qastatus['SemiPass'] = 0
 
         self.qastatus['Observed'] = self.qastatus.Unset + self.qastatus.Pass
         self.qastatus['ebTime'] = self.aqua_execblock.query(
@@ -305,6 +297,8 @@ class DsaDatabase3(object):
         self.schedblocks = pd.concat(
             [self._schedblocks_temp, ar], axis=1).set_index(
             'SB_UID', drop=False)
+        self.schedblocks['SG_ID'] = self.schedblocks.SG_ID.astype(
+            'str', inplace=True)
 
     def _create_extrainfo(self):
 
@@ -611,7 +605,7 @@ class DsaDatabase3(object):
 
         self._schedblocks_temp = pd.DataFrame(
             rst_arr,
-            columns=['SB_UID', 'OBSPROJECT_UID', 'SG_ID', 'OUS_ID',
+            columns=['SB_UID', 'OBSPROJECT_UID', 'sgName', 'OUS_ID',
                      'sbName', 'sbNote', 'sbStatusXml', 'repfreq', 'band',
                      'array',
                      'RA', 'DEC', 'minAR_ot', 'maxAR_ot', 'execount',
@@ -898,7 +892,7 @@ class DsaDatabase3(object):
             inplace=True, errors='ignore')
         rst_df = pd.DataFrame(
             rst_arr,
-            columns=['SB_UID', 'OBSPROJECT_UID', 'SG_ID', 'OUS_ID',
+            columns=['SB_UID', 'OBSPROJECT_UID', 'sgName', 'OUS_ID',
                      'sbName', 'sbNote', 'sbStatusXml', 'repfreq', 'band',
                      'array',
                      'RA', 'DEC', 'minAR_ot', 'maxAR_ot', 'execount',
@@ -1094,17 +1088,18 @@ class DsaDatabase3(object):
         self._cursor.execute(self._sqlqa0)
         self.aqua_execblock = pd.DataFrame(
             self._cursor.fetchall(),
-            columns=[rec[0] for rec in self._cursor.description]).set_index('SB_UID', drop=False)
+            columns=[rec[0] for rec in self._cursor.description]).set_index(
+            'SB_UID', drop=False)
 
-        # self._cursor.execute(self._sqlqa0com)
-        # self._execblock_comm = pd.DataFrame(
-        #     self._cursor.fetchall(),
-        #     columns=[rec[0] for rec in self._cursor.description]
-        # ).set_index('FINALCOMMENTID', drop=False)
+        self._cursor.execute(self._sqlqa0com)
+        self._execblock_comm = pd.DataFrame(
+            self._cursor.fetchall(),
+            columns=[rec[0] for rec in self._cursor.description]
+        ).set_index('FINALCOMMENTID', drop=False)
 
-        # self.aqua_execblock = pd.merge(
-        #     self.aqua_execblock, self._execblock_comm, on='FINALCOMMENTID',
-        #     how='left').set_index('SB_UID', drop=False)
+        self.aqua_execblock = pd.merge(
+            self.aqua_execblock, self._execblock_comm, on='FINALCOMMENTID',
+            how='left').set_index('SB_UID', drop=False)
 
         self.aqua_execblock['delta'] = (self.aqua_execblock.ENDTIME -
                                         self.aqua_execblock.STARTTIME)
@@ -1112,14 +1107,6 @@ class DsaDatabase3(object):
             lambda x: x['delta'].total_seconds() / 3600., axis=1
         )
 
-        h = ephem.Date(ephem.now() - 7.)
-        # noinspection PyUnusedLocal
-        hs = str(h)[:10].replace('/', '-')
-
-#        self.qastatus = self.aqua_execblock.query(
-#            'QA0STATUS in ["Unset", "Pass"] or '
-#            '(QA0STATUS == "SemiPass" and STARTTIME > @hs)').groupby(
-#            ['SB_UID', 'QA0STATUS']).QA0STATUS.count().unstack().fillna(0)
         self.qastatus = self.aqua_execblock.query(
             'QA0STATUS in ["Unset", "Pass"]'
             ).groupby(
@@ -1129,8 +1116,6 @@ class DsaDatabase3(object):
             self.qastatus['Pass'] = 0
         if 'Unset' not in self.qastatus.columns.values:
             self.qastatus['Unset'] = 0
-        if 'SemiPass' not in self.qastatus.columns.values:
-            self.qastatus['SemiPass'] = 0
 
         self.qastatus['Observed'] = self.qastatus.Unset + self.qastatus.Pass
         self.qastatus['ebTime'] = self.aqua_execblock.query(
@@ -1160,55 +1145,58 @@ class DsaDatabase3(object):
     def _get_ar_lim(self, sbrow):
 
         ouid = sbrow['OBSPROJECT_UID']
-        sgn = sbrow['SG_ID']
+        sgn = sbrow['sgName']
         uid = sbrow['SB_UID']
         ousid = sbrow['OUS_ID']
         sgrow = self.sciencegoals.query('OBSPROJECT_UID == @ouid and '
-                                        '(sg_name == @sgn or '
-                                        ' OUS_ID == @ousid)')
+                                        'OUS_ID == @ousid')
         if len(sgrow) == 0:
-            sgn = sbrow['SG_ID'].rstrip()
+            sgn = sbrow['sgName'].rstrip()
             sgn = sgn.lstrip()
             sgrow = self.sciencegoals.query(
-                'OBSPROJECT_UID == @ouid and (sg_name == @sgn or '
-                ' OUS_ID == @ousid)')
+                'OBSPROJECT_UID == @ouid and sg_name == @sgn')
 
         if len(sgrow) == 0:
-            if sbrow['SG_ID'] == 'CO(4-3), [CI] 1-0 setup':
+            sgn = sbrow['sgName']
+            sgrow = self.sciencegoals.query(
+                'OBSPROJECT_UID == @ouid and sg_name == @sgn')
+
+        if len(sgrow) == 0:
+            if sbrow['sgName'] == 'CO(4-3), [CI] 1-0 setup':
                 sgn = 'CO(4-3), [CI]1-0 setup'
-            elif sbrow['SG_ID'] == 'CO(7-6), [CI] 2-1 setup':
+            elif sbrow['sgName'] == 'CO(7-6), [CI] 2-1 setup':
                 sgn = 'CO(7-6), [CI]2-1 setup'
-            elif sbrow['SG_ID'] == 'CRL618: HNC & HCO+ 3-2 + H29a + HC3N 28-27':
+            elif sbrow['sgName'] == 'CRL618: HNC & HCO+ 3-2 + H29a + HC3N 28-27':
                 sgn = 'CRL618: HNC &HCO+ 3-2 + H29a + HC3N 28-27'
-            elif sbrow['SG_ID'] == 'HCN, H13CN & HC15N J=8-7':
+            elif sbrow['sgName'] == 'HCN, H13CN & HC15N J=8-7':
                 sgn = 'HCN, H13CN &HC15N J=8-7'
             else:
                 sgn = sgn
             sgrow = self.sciencegoals.query(
-                'OBSPROJECT_UID == @ouid and (sg_name == @sgn or '
-                ' OUS_ID == @ousid)')
+                'OBSPROJECT_UID == @ouid and sg_name == @sgn')
 
         sbs = self._schedblocks_temp.query(
-            'OBSPROJECT_UID == @ouid and SG_ID == @sgn and array == "TWELVE-M"')
+            'OBSPROJECT_UID == @ouid and sgName == @sgn and array == "TWELVE-M"')
         isextended = True
         sb_bl_num = len(sbs)
         sb_7m_num = len(self._schedblocks_temp.query(
-            'OBSPROJECT_UID == @ouid and SG_ID == @sgn and array == "SEVEN-M"'))
+            'OBSPROJECT_UID == @ouid and sgName == @sgn and array == "SEVEN-M"'))
         sb_tp_num = len(self._schedblocks_temp.query(
-            'OBSPROJECT_UID == @ouid and SG_ID == @sgn and '
+            'OBSPROJECT_UID == @ouid and sgName == @sgn and '
             'array == "TP-Array"'))
 
         if sbrow['array'] != "TWELVE-M":
             return pd.Series(
-                [None, None, 'N/A', 0, sb_bl_num, sb_7m_num, sb_tp_num],
+                [None, None, 'N/A', 0, sb_bl_num, sb_7m_num, sb_tp_num,
+                 sgrow['SG_ID'].values[0]],
                 index=["minAR", "maxAR", "BestConf", "two_12m", "SB_BL_num",
-                       "SB_7m_num", "SB_TP_num"])
+                       "SB_7m_num", "SB_TP_num", "SG_ID"])
         if len(sgrow) == 0:
             print "What? %s" % uid
             return pd.Series(
-                [0, 0, 'E', 0, sb_bl_num, sb_7m_num, sb_tp_num],
+                [0, 0, 'E', 0, sb_bl_num, sb_7m_num, sb_tp_num, sgrow['SG_ID']],
                 index=["minAR", "maxAR", "BestConf", "two_12m", "SB_BL_num",
-                       "SB_7m_num", "SB_TP_num"])
+                       "SB_7m_num", "SB_TP_num", "SG_ID"])
         else:
             sgrow = sgrow.iloc[0]
 
@@ -1224,6 +1212,8 @@ class DsaDatabase3(object):
 
         # noinspection PyBroadException
         try:
+            if sgrow['ARcor'] == 0:
+                sgrow['ARcor'] = sgrow['AR'] * sbrow['repfreq'] / 100.
             minar, maxar, conf1, conf2 = self._ares.run(
                 sgrow['ARcor'], sgrow['LAScor'], sbrow['DEC'], sgrow['useACA'],
                 num12, sbrow['OT_BestConf'], uid)
@@ -1231,22 +1221,24 @@ class DsaDatabase3(object):
             print "Exception, %s" % uid
             print sgrow['ARcor'], sgrow['LAScor'], sbrow['DEC'], sgrow['useACA']
             return pd.Series(
-                [0, 0, 'C', num12, sb_bl_num, sb_7m_num, sb_tp_num],
+                [0, 0, 'C', num12, sb_bl_num, sb_7m_num, sb_tp_num,
+                 sgrow['SG_ID']],
                 index=["minAR", "maxAR", "BestConf", "two_12m", "SB_BL_num",
-                       "SB_7m_num", "SB_TP_num"])
+                       "SB_7m_num", "SB_TP_num", "SG_ID"])
 
         if not isextended:
 
             return pd.Series(
                 [minar[1], maxar[1], conf2, num12, sb_bl_num, sb_7m_num,
-                 sb_tp_num],
+                 sb_tp_num, sgrow['SG_ID']],
                 index=["minAR", "maxAR", "BestConf", "two_12m", "SB_BL_num",
-                       "SB_7m_num", "SB_TP_num"])
+                       "SB_7m_num", "SB_TP_num", "SG_ID"])
 
         return pd.Series(
-            [minar[0], maxar[0], conf1, num12, sb_bl_num, sb_7m_num, sb_tp_num],
+            [minar[0], maxar[0], conf1, num12, sb_bl_num, sb_7m_num, sb_tp_num,
+             sgrow['SG_ID']],
             index=["minAR", "maxAR", "BestConf", "two_12m", "SB_BL_num",
-                   "SB_7m_num", "SB_TP_num"])
+                   "SB_7m_num", "SB_TP_num", "SG_ID"])
 
     def get_ousstatus(self):
 

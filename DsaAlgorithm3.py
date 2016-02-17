@@ -656,38 +656,50 @@ class DsaAlgorithm3(object):
         ALMA1.horizon = savehoriz
 
     # noinspection PyTypeChecker
-    def _aggregate_dfs(self):
+    def _aggregate_dfs(self, sim=False):
 
         """
 
         """
+        if sim:
+            phase = ["I", "II"]
+            hasSB = 'hasSB == True or hasSB == False'
+        else:
+            phase = ["II"]
+            hasSB = 'hasSB == True'
+
         self.master_dsa_df = pd.merge(
-            self.data.projects.query('phase == "II"')[
+            self.data.projects.query('phase in @phase')[
                 ['OBSPROJECT_UID', 'CYCLE', 'CODE', 'DC_LETTER_GRADE',
                  'PRJ_SCIENTIFIC_RANK', 'PRJ_STATUS', 'EXEC']],
-            self.data.sciencegoals.query('hasSB == True')[
+            self.data.sciencegoals.query(hasSB)[
                 ['OBSPROJECT_UID', 'SG_ID', 'OUS_ID', 'ARcor', 'LAScor',
-                 'isTimeConstrained', 'isCalSpecial', 'isSpectralScan']],
+                 'isTimeConstrained', 'isCalSpecial', 'isSpectralScan',
+                 'sg_name', 'AR', 'LAS']],
             on='OBSPROJECT_UID', how='left')
 
         self.master_dsa_df = pd.merge(
             self.master_dsa_df,
-            self.data.sblocks[
-                ['OBSPROJECT_UID', 'OUS_ID', 'GOUS_ID', 'MOUS_ID', 'SB_UID']],
-            on=['OBSPROJECT_UID', 'OUS_ID'], how='left')
-
-        self.master_dsa_df = pd.merge(
-            self.master_dsa_df,
             self.schedblocks[
-                ['SB_UID', 'sbName', 'array', 'repfreq', 'band', 'RA', 'DEC',
+                ['OBSPROJECT_UID', 'SB_UID', 'sbName', 'array',
+                 'repfreq', 'band', 'RA', 'DEC',
                  'maxPWVC', 'minAR', 'maxAR', 'OT_BestConf', 'BestConf',
                  'two_12m', 'estimatedTime', 'isPolarization', 'ephem',
                  'airmass_ot', 'transmission_ot', 'tau_ot', 'tsky_ot',
-                 'tsys_ot', 'sbNote']],
-            on=['SB_UID'], how='left')
+                 'tsys_ot', 'sbNote', 'SG_ID', 'sgName']],
+            on=['OBSPROJECT_UID', 'SG_ID'], how='right')
+
+        self.master_dsa_df = pd.merge(
+            self.master_dsa_df,
+            self.data.sblocks[
+                ['OBSPROJECT_UID', 'OUS_ID', 'GOUS_ID', 'MOUS_ID',
+                 'SB_UID']],
+            on=['OBSPROJECT_UID', 'SB_UID'], how='left',
+            suffixes=['_sg', '_sb'])
 
         self.master_dsa_df['ARcor'] = self.master_dsa_df.apply(
-            lambda x: x['ARcor'] if not str(x['sbName']).endswith('_TC') else
+            lambda x: x['AR'] * x['repfreq'] / 100. if not
+            str(x['sbName']).endswith('_TC') else
             x['minAR'] / 0.8, axis=1
         )
 
@@ -708,14 +720,13 @@ class DsaAlgorithm3(object):
         self.master_dsa_df = pd.merge(
             self.master_dsa_df,
             self.data.qastatus[
-                ['Unset', 'Pass', 'Observed', 'SemiPass', 'ebTime',
+                ['Unset', 'Pass', 'Observed', 'ebTime',
                  'last_observed', 'last_qa0', 'last_status']],
             left_on='SB_UID', right_index=True, how='left')
 
         self.master_dsa_df.Unset.fillna(0, inplace=True)
         self.master_dsa_df.Pass.fillna(0, inplace=True)
         self.master_dsa_df.Observed.fillna(0, inplace=True)
-        self.master_dsa_df.SemiPass.fillna(0, inplace=True)
 
         self.master_dsa_df = pd.merge(
             self.master_dsa_df,

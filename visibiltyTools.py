@@ -61,7 +61,7 @@ def compute_bl(ar, freq, las=False):
 
 def compute_array_ar(ruv):
     x = np.linspace(0, ruv.max() + 100., 1000)
-    param = rayleigh.fit(ruv)
+    param = rayleigh.fit(ruv, scale=ruv.mean())
     pdf_fitted = rayleigh.pdf(x, loc=param[0], scale=param[1])
     interval = rayleigh.interval(0.992, loc=param[0], scale=param[1])
     linea = min(interval[1], ruv.max())
@@ -70,7 +70,7 @@ def compute_array_ar(ruv):
 
 def compute_array_ar_check(ruv):
     x = np.linspace(0, ruv.max() + 100., 100)
-    param = rayleigh.fit(ruv)
+    param = rayleigh.fit(ruv, scale=ruv.mean())
     pdf_fitted = rayleigh.pdf(x, loc=param[0], scale=param[1])
     interval = rayleigh.interval(0.992, loc=param[0], scale=param[1])
     linea = min(interval[1], ruv.max())

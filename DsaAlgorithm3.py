@@ -4,6 +4,7 @@ import os
 import DsaTools3 as DsaTool
 import visibiltyTools as rUV
 import datetime as dt
+import cx_Oracle
 
 from astropy import units as u
 from astropy.coordinates import SkyCoord, EarthLocation, AltAz
@@ -64,7 +65,16 @@ CONF_LIM = {
         'C36-5': 47.9,
         'C36-6': 77.3,
         'C36-7': 248.3,
-        'C36-8': 346.5
+        'C36-8': 346.5,
+        'C40-1': 15.0,
+        'C40-2': 15.0,
+        'C40-3': 15.0,
+        'C40-4': 15.0,
+        'C40-5': 16.6,
+        'C40-6': 15.3,
+        'C40-7': 80.7,
+        'C40-8': 167.0,
+        'C40-9': 267.3
     },
     'maxbase': {
         'C36-1': 160.7,
@@ -74,7 +84,16 @@ CONF_LIM = {
         'C36-5': 1396.4,
         'C36-6': 2299.6,
         'C36-7': 6074.2,
-        'C36-8': 9743.7
+        'C36-8': 9743.7,
+        'C40-1': 155.6,
+        'C40-2': 272.6,
+        'C40-3': 460.0,
+        'C40-4': 704.1,
+        'C40-5': 1124.3,
+        'C40-6': 1813.2,
+        'C40-7': 3697.0,
+        'C40-8': 6855.2,
+        'C40-9': 12645.0
     }
 }
 
@@ -84,53 +103,68 @@ CONFRES = {
     'C36-3': 1.22,
     'C36-4': 0.7,
     'C36-5': 0.49,
-    'C36-6': 0.27,
+    'C36-6': 0.3,
     'C36-7': 0.12,
-    'C36-8': 0.075}
+    'C36-8': 0.075,
+    'C40-1': 3.38,
+    'C40-2': 2.41,
+    'C40-3': 1.47,
+    'C40-4': 0.93,
+    'C40-5': 0.53,
+    'C40-6': 0.34,
+    'C40-7': 0.197,
+    'C40-8': 0.115,
+    'C40-9': 0.0651}
 
-CYC_NA = {'2013.A': 34,
+CONFLAS = {
+    'C36-1': 25.31,
+    'C36-2': 24.93,
+    'C36-3': 22.84,
+    'C36-4': 9.42,
+    'C36-5': 16.85,
+    'C36-6': 3.72,
+    'C36-7': 1.78,
+    'C36-8': 1.07,
+    'C40-1': 24.76,
+    'C40-2': 24.76,
+    'C40-3': 24.71,
+    'C40-4': 24.71,
+    'C40-5': 22.33,
+    'C40-6': 24.28,
+    'C40-7': 4.59,
+    'C40-8': 2.22,
+    'C40-9': 1.39
+}
+
+CYC_NA = {'2012.A': 34,
+          '2012.1': 34,
+          '2013.A': 34,
           '2013.1': 34,
           '2015.1': 36,
           '2015.A': 36}
 
 
-# noinspection PyAttributeOutsideInit,PyProtectedMember,PyUnresolvedReferences
+# noinspection PyAttributeOutsideInit,PyProtectedMember
 class DsaAlgorithm3(object):
-    """
-    Input is instance from DsaDatabase, adds the methods for selection and
-    scoring.
-    It also sets the default parameters for these methods: pwv=1.2, date=now,
-    array angular resolution, transmission=0.5, minha=-5, maxha=3, etc.
 
-    :return: A DsaAlgorithm instance.
-
-    Should run:
-       .update_archive
-       .write_ephem
-       .static_param
-       .selector
-       .calc_scores
-
-       (in this order)
-    """
     def __init__(self, data):
 
-        """
-
-        """
-
-        self.data = data
-        self.tau = pd.read_csv(
-            self.data._dsa_path + 'conf/tau.csv', sep=',', header=0).set_index(
-            'freq')
-        self.tsky = pd.read_csv(
-            self.data._dsa_path + 'conf/tskyR.csv', sep=',',
-            header=0).set_index(
-                'freq')
-        self.pwvdata = pd.read_pickle(
-            self.data._dsa_path + 'conf/pwvdata2.pandas')  # .set_index('freq')
-        # self.pwvdata.index = pd.Float64Index(
-        #     pd.np.round(self.pwvdata.index.values, decimals=1), name=u'freq')
+        self._dsa_path = os.environ['DSA']
+        self._conx_str = os.environ['CON_STR']
+        if data is not None:
+            self.data = data
+            self.tau = pd.read_csv(
+                self._dsa_path + 'conf/tau.csv',
+                sep=',', header=0).set_index('freq')
+            self.tsky = pd.read_csv(
+                self._dsa_path + 'conf/tskyR.csv', sep=',',
+                header=0).set_index(
+                    'freq')
+            self.pwvdata = pd.read_pickle(
+                self._dsa_path + 'conf/pwvdata2.pandas')
+            self.schedblocks = self.data.schedblocks.copy()
+        else:
+            mode = 'Just for some tools...'
 
         self._pwv = None
         self._array_res = []
@@ -139,9 +173,9 @@ class DsaAlgorithm3(object):
         self._time_astropy = TIME
         self._ALMA_ephem = ALMA1
         self._static_calculated = False
-        self.schedblocks = self.data.schedblocks.copy()
 
     def set_time_now(self):
+        
         """
 
         """
@@ -151,9 +185,11 @@ class DsaAlgorithm3(object):
         self._ALMA_ephem.date = ephem.now()
 
     def set_time(self, time_str):
+
         """
 
-        :param time_str:
+        Args:
+            time_str: 
         """
         self._time_astropy = Time(time_str)
         self._time_astropy.delta_ut1_utc = 0
@@ -163,8 +199,7 @@ class DsaAlgorithm3(object):
     def write_ephem_coords(self):
 
         """
-        TODO: deal with multiple targets, which RA to take?
-        TODO: make this table unique... by instance
+
         """
         self.schedblocks['ephem'] = 'N/A'
 
@@ -191,7 +226,8 @@ class DsaAlgorithm3(object):
 
         """
 
-        :param horizon:
+        Args:
+            horizon: 
         """
         if self._static_calculated:
             idx = self.data.target_tables.query(
@@ -217,7 +253,8 @@ class DsaAlgorithm3(object):
             ind2 = self.schedblocks.apply(
                 lambda x: str(
                     int(x['maxPWVC'] / 0.05) * 0.05 +
-                    (0.05 if (x['maxPWVC'] % 0.05) > 0.02 else 0.)),
+                    (0.05 if (x['maxPWVC'] % 0.05) > 0.02 else 0.)) if
+                x['maxPWVC'] < 8 else '7.95',
                 axis=1)
 
             self.schedblocks['transmission_ot'] = self.pwvdata.lookup(
@@ -246,7 +283,8 @@ class DsaAlgorithm3(object):
 
         """
 
-        :param obsproject_uid:
+        Args:
+            obsproject_uid: 
         """
         self.data._update_apdm(obsproject_uid)
         self.schedblocks = self.data.schedblocks.copy()
@@ -257,7 +295,6 @@ class DsaAlgorithm3(object):
                  prj_status=("Ready", "InProgress"),
                  sb_status=("Ready", "Suspended", "Running", "CalibratorCheck",
                             "Waiting"),
-                 cycle=("2013.A", "2013.1", "2015.1", "2015.A"),
                  letterg=("A", "B", "C"),
                  bands=("ALMA_RB_03", "ALMA_RB_04", "ALMA_RB_06", "ALMA_RB_07",
                         "ALMA_RB_08", "ALMA_RB_09", "ALMA_RB_10"),
@@ -274,29 +311,33 @@ class DsaAlgorithm3(object):
 
         """
 
-        :param array_kind:
-        :param prj_status:
-        :param sb_status:
-        :param cycle:
-        :param letterg:
-        :param bands:
-        :param check_count:
-        :param conf:
-        :param calc_blratio:
-        :param numant:
-        :param array_id:
-        :param horizon:
-        :param minha:
-        :param maxha:
-        :param pwv:
-        :param sim:
-        :return:
+        Args:
+            array_kind: 
+            prj_status: 
+            sb_status: 
+            letterg:
+            bands: 
+            check_count: 
+            conf: 
+            calc_blratio: 
+            numant: 
+            array_id: 
+            horizon: 
+            minha: 
+            maxha: 
+            pwv: 
+            sim: 
+
         """
         if float(pwv) > 8:
             pwv = 8.0
-        print self._time_astropy
+        # print self._time_astropy
 
-        self._aggregate_dfs()
+        if sim:
+            self._aggregate_dfs(sim=True)
+        else:
+            self._aggregate_dfs()
+
         self.master_dsa_df['array'] = self.master_dsa_df.apply(
             lambda x: 'SEVEN-M' if x['array'] == "ACA" else
             x['array'], axis=1
@@ -305,6 +346,7 @@ class DsaAlgorithm3(object):
             lambda x: True if str(x['CODE']).endswith('.T') else
             False, axis=1
         )
+
         self.selection_df = self.master_dsa_df[['SB_UID']].copy()
 
         # select array kind
@@ -325,10 +367,17 @@ class DsaAlgorithm3(object):
                 axis=1))
 
         # select By grades
+
+        sbuid_ex = self.exception_df.SB_UID.unique()
+
         self.selection_df['selGrade'] = (
             self.master_dsa_df.apply(
                 lambda x: True if
-                x['CYCLE'] in cycle and x['DC_LETTER_GRADE'] in letterg else
+                (x['CYCLE'] in
+                 ["2015.1", "2015.A"] and x['DC_LETTER_GRADE'] in letterg) or
+                (x['CYCLE'] not in
+                 ["2015.1", "2015.A"] and x['DC_LETTER_GRADE'] == "A") or
+                (x['SB_UID'] in sbuid_ex) else
                 False, axis=1)
         )
 
@@ -339,6 +388,13 @@ class DsaAlgorithm3(object):
                 axis=1
             )
         )
+
+        if not sim:
+            self.selection_df = self.selection_df.query(
+                'selArray == True and selPrjState == True and '
+                'selSBState == True and selGrade == True and selBand == True')
+            sb_fsel = self.selection_df.SB_UID.unique()
+            self.master_dsa_df = self.master_dsa_df.query('SB_UID in @sb_fsel')
 
         # select if still some observations are left
 
@@ -359,11 +415,12 @@ class DsaAlgorithm3(object):
             self.master_dsa_df['blmin'] = self.master_dsa_df.apply(
                 lambda row: rUV.compute_bl(row['LAScor'], 100., las=True) if
                 ((row['LAScor'] > row['minAR']) and
-                 (row['LAScor'] > 5 * row['ARcor']))
+                 (row['LAScor'] > 5 * row['ARcordec']))
                 else rUV.compute_bl(10., 100., las=True),
                 axis=1)
 
             if conf:
+                # Not Working For Exceptions!!!
                 qstring = ''
                 l = len(conf) - 1
                 for i, c in enumerate(conf):
@@ -374,9 +431,14 @@ class DsaAlgorithm3(object):
                         qstring += '%s == "%s" or ' % (col, c)
                 sbs_sel = self.master_dsa_df.query(qstring).SB_UID.unique()
                 self.selection_df['selConf'] = self.selection_df.apply(
-                    lambda x: True if x['SB_UID'] in sbs_sel else False,
+                    lambda x: True if (x['SB_UID'] in sbs_sel) or
+                    ((x['lenconf'] > 0) and
+                     (x['minAR'] <= self.ar <= x['maxAR']))
+                    else False,
                     axis=1
                 )
+
+                self.ar = CONFRES[conf[0]]
 
                 self.master_dsa_df['bl_ratio'] = 1.
                 self.master_dsa_df['array_ar_cond'] = self.master_dsa_df.apply(
@@ -406,41 +468,42 @@ class DsaAlgorithm3(object):
 
             else:
                 self._query_array()
+                try:
+                    a = self._last_array_used
+                except AttributeError:
+                    self._last_array_used = ''
+
                 if array_id == 'last':
                     array_id = self.arrays.iloc[0, 3]
 
-                if sim:
-                    try:
-                        self.master_dsa_df['array_ar_cond'] = \
-                            self.arr_cache['array_ar_cond']
-                        self.master_dsa_df['num_bl_use'] = \
-                            self.arr_cache['num_bl_use']
-
-                    except AttributeError:
-                        ar, numbl, numant, ruv = self._get_bl_prop(array_id)
-                        self.master_dsa_df[['array_ar_cond', 'num_bl_use']] = (
-                            self.master_dsa_df.apply(
-                                lambda x: self._get_sbbased_bl_prop(
-                                    ruv, x['blmin'] * 0.9, x['blmax'] * 1.1,
-                                    x['array']),
-                                axis=1)
-                            )
-                    self.arr_cache = self.master_dsa_df[
-                        ['array_ar_cond', 'num_bl_use']].copy()
+                if self._last_array_used == array_id:
+                    self.master_dsa_df['array_ar_cond'] = \
+                        self.arr_cache['array_ar_cond']
+                    self.master_dsa_df['num_bl_use'] = \
+                        self.arr_cache['num_bl_use']
                 else:
-                    ar, numbl, numant, ruv = self._get_bl_prop(array_id)
+                    self.ar, numbl, numant, ruv = self._get_bl_prop(array_id)
                     self.master_dsa_df[['array_ar_cond', 'num_bl_use']] = (
                         self.master_dsa_df.apply(
                             lambda x: self._get_sbbased_bl_prop(
                                 ruv, x['blmin'] * 0.9, x['blmax'] * 1.1,
                                 x['array']),
-                            axis=1))
+                            axis=1)
+                        )
+                self.arr_cache = self.master_dsa_df[
+                    ['array_ar_cond', 'num_bl_use']].copy()
+                self._last_array_used = array_id
 
                 self.selection_df['selConf'] = self.master_dsa_df.apply(
                     lambda x: True if
-                    (x['array_ar_cond'] > x['minAR']) and
-                    (x['array_ar_cond'] < (x['maxAR'] * 1.3)) and
-                    (x['array_ar_cond'] < (x['ARcordec'] * 1.15))
+                    ((x['array_ar_cond'] > x['minAR']) and
+                     (self.ar > 0.5 * x['ARcordec']) and
+                     (x['array_ar_cond'] < (x['maxAR'] * 1.3)) and
+                     (x['array_ar_cond'] < (x['ARcordec'] * 1.15))) or
+                    ((x['lenconf'] > 2) and
+                     (x['minAR'] <= self.ar) and
+                     (self.ar <= x['maxAR']) and
+                     (x['array'] == "TWELVE-M"))
                     else False, axis=1)
 
                 self.master_dsa_df['bl_ratio'] = self.master_dsa_df.apply(
@@ -604,15 +667,6 @@ class DsaAlgorithm3(object):
             axis=1
         )
 
-        self.calc_completion()
-        self.master_dsa_df = pd.merge(
-            self.master_dsa_df,
-            self.grouped_ous[['OBSPROJECT_UID', 'GOUS_ID', 'GOUS_comp',
-                              'proj_comp']],
-            on=['OBSPROJECT_UID', 'GOUS_ID'],
-            how='left'
-        )
-
         self.master_dsa_df.set_index('SB_UID', drop=False, inplace=True)
         self.selection_df.set_index('SB_UID', drop=False, inplace=True)
 
@@ -655,24 +709,28 @@ class DsaAlgorithm3(object):
         ALMA1.date = savedate
         ALMA1.horizon = savehoriz
 
-    # noinspection PyTypeChecker
+    # noinspection PyTypeChecker,PyUnusedLocal
     def _aggregate_dfs(self, sim=False):
 
         """
-
+        
+        Args:
+            sim: 
         """
         if sim:
             phase = ["I", "II"]
-            hasSB = 'hasSB == True or hasSB == False'
+            hassb = 'hasSB == True or hasSB == False'
+            how = 'right'
         else:
             phase = ["II"]
-            hasSB = 'hasSB == True'
+            hassb = 'hasSB == True'
+            how = 'left'
 
         self.master_dsa_df = pd.merge(
             self.data.projects.query('phase in @phase')[
                 ['OBSPROJECT_UID', 'CYCLE', 'CODE', 'DC_LETTER_GRADE',
                  'PRJ_SCIENTIFIC_RANK', 'PRJ_STATUS', 'EXEC']],
-            self.data.sciencegoals.query(hasSB)[
+            self.data.sciencegoals.query(hassb)[
                 ['OBSPROJECT_UID', 'SG_ID', 'OUS_ID', 'ARcor', 'LAScor',
                  'isTimeConstrained', 'isCalSpecial', 'isSpectralScan',
                  'sg_name', 'AR', 'LAS']],
@@ -686,8 +744,8 @@ class DsaAlgorithm3(object):
                  'maxPWVC', 'minAR', 'maxAR', 'OT_BestConf', 'BestConf',
                  'two_12m', 'estimatedTime', 'isPolarization', 'ephem',
                  'airmass_ot', 'transmission_ot', 'tau_ot', 'tsky_ot',
-                 'tsys_ot', 'sbNote', 'SG_ID', 'sgName']],
-            on=['OBSPROJECT_UID', 'SG_ID'], how='right')
+                 'tsys_ot', 'sbNote', 'SG_ID', 'sgName', 'execount']],
+            on=['OBSPROJECT_UID', 'SG_ID'], how=how)
 
         self.master_dsa_df = pd.merge(
             self.master_dsa_df,
@@ -712,10 +770,22 @@ class DsaAlgorithm3(object):
                     str(x['sbName']).endswith('_TC') else
                     x['ARcor'], axis=1)
 
+        self.master_dsa_df['arcordec_original'] = \
+            self.master_dsa_df.ARcordec.copy()
+
         self.master_dsa_df = pd.merge(
             self.master_dsa_df,
             self.data.sb_status[['SB_UID', 'SB_STATE', 'EXECOUNT']],
             on=['SB_UID'], how='left')
+
+        self.master_dsa_df.EXECOUNT.fillna(-10, inplace=True)
+
+        self.master_dsa_df['EXECOUNT'] = self.master_dsa_df.apply(
+            lambda x: x['execount'] if x['EXECOUNT'] == -10 else
+            x['EXECOUNT'], axis=1
+        )
+
+        self.master_dsa_df.drop('execount', axis=1, inplace=True)
 
         self.master_dsa_df = pd.merge(
             self.master_dsa_df,
@@ -759,11 +829,44 @@ class DsaAlgorithm3(object):
         self.master_dsa_df.DEC_pol.fillna(0, inplace=True)
         self.master_dsa_df.PolCalibrator.fillna('', inplace=True)
 
+        self.calc_completion()
+        self.master_dsa_df = pd.merge(
+            self.master_dsa_df,
+            self.grouped_ous[['OBSPROJECT_UID', 'GOUS_ID', 'GOUS_comp',
+                              'proj_comp']],
+            on=['OBSPROJECT_UID', 'GOUS_ID'],
+            how='left'
+        )
+
+        self.exception_df = pd.merge(
+            self.data._exceptions,
+            self.master_dsa_df[['CODE', 'sbName', 'SB_UID', 'array']],
+            on=['CODE', 'sbName'], how='left').set_index('SB_UID', drop=False)
+        self.exception_df.forced_confs.fillna('None', inplace=True)
+        self.exception_df['conflist'] = \
+            self.exception_df.forced_confs.str.split(',')
+        self.exception_df['CompConf'] = self.exception_df.apply(
+            lambda x: x['conflist'][0], axis=1)
+        self.exception_df['ExtConf'] = self.exception_df.apply(
+            lambda x: x['conflist'][-1], axis=1)
+        self.exception_df['lenconf'] = self.exception_df.apply(
+            lambda x: len(x['conflist']) if
+            'None' not in x['conflist'] and x['array'] == "TWELVE-M" else
+            0, axis=1)
+
+        self.master_dsa_df[
+                ['SB_UID_ck', 'minAR', 'maxAR', 'ARcordec',
+                 'LAScor', 'BestConf', 'lenconf']] = self.master_dsa_df.apply(
+                lambda row: newimparam_excep(self.exception_df, row), axis=1
+            )
+
     def _query_array(self, array_kind='TWELVE-M'):
-        """
 
         """
 
+        Args:
+            array_kind: 
+        """
         if array_kind == 'TWELVE-M':
             sql = str(
                 "select se.SE_TIMESTAMP ts1, sa.SLOG_ATTR_VALUE av1, "
@@ -798,11 +901,16 @@ class DsaAlgorithm3(object):
             print("%s array kind is not valid. Use TWELVE-M, SEVEN-M, TP-Array")
             return
 
-        self.data._cursor.execute(sql)
-        self._arrays_info = pd.DataFrame(
-            self.data._cursor.fetchall(),
-            columns=[rec[0] for rec in self.data._cursor.description]
-        ).sort_values(by='TS1', ascending=False)
+        con, cur = self.open_oracle_conn()
+        try:
+            cur.execute(sql)
+            self._arrays_info = pd.DataFrame(
+                cur.fetchall(),
+                columns=[rec[0] for rec in cur.description]
+            ).sort_values(by='TS1', ascending=False)
+        finally:
+            cur.close()
+            con.close()
 
         if self._arrays_info.size == 0:
             self._arrays_info = pd.DataFrame(
@@ -853,17 +961,21 @@ class DsaAlgorithm3(object):
             "and se.SE_LOCATION='OSF-AOS'"
         )
 
+        con, cur = self.open_oracle_conn()
         try:
-            self.data._cursor.execute(b)
+            cur.execute(b)
             self._shifts = pd.DataFrame(
-                self.data._cursor.fetchall(),
-                columns=[rec[0] for rec in self.data._cursor.description]
+                cur.fetchall(),
+                columns=[rec[0] for rec in cur.description]
             ).sort_values(by='TS1', ascending=False)
         except ValueError:
             self._shifts = pd.DataFrame(
                 columns=pd.Index(
                     [u'TS1', u'AV1', u'SE_ARRAYNAME', u'SE1'], dtype='object'))
             print("No shiftlogs have been created in the last 6 hours.")
+        finally:
+            cur.close()
+            con.close()
 
         last_shift = self._shifts[
             self._shifts.SE1 == self._shifts.iloc[0].SE1].copy(
@@ -875,12 +987,16 @@ class DsaAlgorithm3(object):
 
     def _get_bl_prop(self, array_name):
 
+        # In case a bl_array is selected
         """
 
-        :return:
-        :param array_name:
+        Args:
+            array_name: 
+
+        Returns:
+            object: 
+
         """
-        # In case a bl_array is selected
         if array_name not in CONF_LIM['minbase'].keys():
             id1 = self._arrays_info.query(
                 'SE_ARRAYNAME == "%s"' % array_name).iloc[0].SE1
@@ -899,7 +1015,7 @@ class DsaAlgorithm3(object):
             conf = pd.merge(ap, self._ante_pad,
                             left_on='antenna', right_on='antenna')[
                 ['pad', 'antenna']]
-            conf_file = self.data._data_path + '%s.txt' % array_name
+            conf_file = self._dsa_path + 'conf/%s.txt' % array_name
             conf.to_csv(conf_file, header=False,
                         index=False, sep=' ')
             ac = rUV.ac.ArrayConfigurationCasaFile()
@@ -911,13 +1027,16 @@ class DsaAlgorithm3(object):
 
         # If C36 is selected
         else:
-            conf_file = (self.data._dsa_path +
+            conf_file = (self._dsa_path +
                          'conf/%s.cfg' % array_name)
             ruv = rUV.compute_radialuv(conf_file)
             # noinspection PyTypeChecker
-            array_ar = CONFRES[array_name]
-            num_bl = 36 * 35. / 2.
-            num_ant = 36
+            array_ar = rUV.compute_array_ar(ruv)
+            num_bl = len(ruv)
+            if array_name.startswith('C40'):
+                num_ant = 40
+            else:
+                num_ant = 36
 
         return array_ar, num_bl, num_ant, ruv
 
@@ -926,10 +1045,15 @@ class DsaAlgorithm3(object):
 
         """
 
-        :param ruv:
-        :param blmin:
-        :param blmax:
-        :return:
+        Args:
+            ruv: 
+            blmin: 
+            blmax: 
+            arrayfam: 
+
+        Returns:
+            Pandas.Series: 
+
         """
         if arrayfam != "TWELVE-M":
             return pd.Series(
@@ -952,6 +1076,10 @@ class DsaAlgorithm3(object):
         pass
 
     def calc_completion(self):
+        
+        """
+
+        """
 
         s1 = pd.merge(
                 self.data.qastatus.reset_index(),
@@ -994,17 +1122,33 @@ class DsaAlgorithm3(object):
             on='OBSPROJECT_UID', how='left'
         )
 
+    def open_oracle_conn(self):
+
+        """
+
+        Returns:
+            object:
+
+        """
+        connection = cx_Oracle.connect(self._conx_str, threaded=True)
+        cursor = connection.cursor()
+        return connection, cursor
+
 
 def calc_bl_ratio(arrayk, cycle, numbl, selconf, numant=None):
 
     """
 
-    :param arrayk:
-    :param cycle:
-    :param numbl:
-    :param selconf:
-    :param numant:
-    :return:
+    Args:
+        arrayk: 
+        cycle: 
+        numbl: 
+        selconf: 
+        numant: 
+
+    Returns:
+        float: 
+
     """
     if arrayk == "TWELVE-M" and selconf:
         bl_or = CYC_NA[cycle] * (CYC_NA[cycle] - 1.) / 2.
@@ -1025,11 +1169,15 @@ def calc_tsys(band, tsky, tau, airmass):
 
     """
 
-    :param band:
-    :param tsky:
-    :param tau:
-    :param airmass:
-    :return:
+    Args:
+        band: 
+        tsky: 
+        tau: 
+        airmass: 
+
+    Returns:
+        float: 
+
     """
     if airmass:
 
@@ -1052,11 +1200,16 @@ def calc_tsys(band, tsky, tau, airmass):
 
 # noinspection PyTypeChecker
 def calc_airmass(dec_el, transit=True):
+
     """
 
-    :param dec_el:
-    :param transit:
-    :return:
+    Args:
+        dec_el: 
+        transit: 
+
+    Returns:
+        float: 
+
     """
     if transit:
         airmass = 1 / pd.np.cos(pd.np.radians(-23.0262015 - dec_el))
@@ -1066,3 +1219,72 @@ def calc_airmass(dec_el, transit=True):
         else:
             airmass = None
     return airmass
+
+
+def newimparam_excep(excdf, sbrow):
+
+    """
+
+    Args:
+        excdf: 
+        sbrow: 
+
+    Returns:
+        Pandas.Series: 
+
+    """
+    if sbrow['SB_UID'] not in excdf.SB_UID.unique():
+        return pd.Series(
+            [sbrow['SB_UID'], sbrow['minAR'], sbrow['maxAR'],
+             sbrow['ARcordec'], sbrow['LAScor'],
+             sbrow['BestConf'], 0],
+            index=['SB_UID', 'minAR', 'maxAR', 'ARcordec', 'LAScor', 'BestConf',
+                   'lenconf'])
+
+    lenconf = excdf.ix[sbrow['SB_UID'], 'lenconf']
+    compconf = excdf.ix[sbrow['SB_UID'], 'CompConf']
+    extconf = excdf.ix[sbrow['SB_UID'], 'ExtConf']
+
+    if lenconf == 0:
+        return pd.Series(
+            [sbrow['SB_UID'], sbrow['minAR'], sbrow['maxAR'],
+             sbrow['ARcordec'], sbrow['LAScor'],
+             sbrow['BestConf'], 0],
+            index=['SB_UID', 'minAR', 'maxAR', 'ARcordec', 'LAScor', 'BestConf',
+                   'lenconf'])
+
+    elif lenconf == 1:
+        minar = CONFRES[compconf] * 0.8
+        maxar = CONFRES[compconf] * 1.2
+        arcordec = CONFRES[compconf]
+        lascor = CONFLAS[compconf]
+        bestconf = compconf
+        return pd.Series(
+            [sbrow['SB_UID'], minar, maxar, arcordec, lascor, bestconf,
+             lenconf],
+            index=['SB_UID', 'minAR', 'maxAR', 'ARcordec', 'LAScor', 'BestConf',
+                   'lenconf'])
+
+    elif lenconf == 2:
+        minar = CONFRES[extconf] * 0.8
+        maxar = CONFRES[compconf] * 1.2
+        arcordec = (CONFRES[extconf] + CONFRES[compconf]) / 2.
+        lascor = CONFLAS[compconf]
+        bestconf = extconf
+        return pd.Series(
+            [sbrow['SB_UID'], minar, maxar, arcordec, lascor, bestconf,
+             lenconf],
+            index=['SB_UID', 'minAR', 'maxAR', 'ARcordec', 'LAScor', 'BestConf',
+                   'lenconf'])
+
+    else:
+        minar = CONFRES[extconf] * 0.8
+        maxar = CONFRES[compconf] * 1.2
+        arcordec = CONFRES[extconf]
+        lascor = CONFLAS[compconf]
+        bestconf = 'Any/Many'
+        return pd.Series(
+            [sbrow['SB_UID'], minar, maxar, arcordec, lascor, bestconf,
+             lenconf],
+            index=['SB_UID', 'minAR', 'maxAR', 'ARcordec', 'LAScor', 'BestConf',
+                   'lenconf'])

@@ -137,7 +137,7 @@ class ArrayConfigurationCasaFile:
                 
             f.write(line)
         
-        print "### %s created."%(configurationFile)   
+        # print "### %s created."%(configurationFile)
         f.close()
             
 

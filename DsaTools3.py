@@ -466,8 +466,9 @@ def calc_ephem_coords(ekind, ephemstring='', sbuid='', alma=ALMA1, date=None):
             # print(ephemeris, sourcename)
             ephe = False
         if not ephe:
-            print("SB %s, source %s, doesn't have ephemeris for current's date"
-                  % (sbuid, ekind))
+            # print(
+            #     "SB %s, source %s, doesn't have ephemeris for current's date"
+            #     % (sbuid, ekind))
             ALMA1.date = date_now
             return 0., 0., 'Fail'
         else:

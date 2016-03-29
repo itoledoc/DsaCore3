@@ -59,6 +59,8 @@ def convert_jy(flux, unit):
         value = value
     elif unit == 'mJy':
         value /= 1000.
+    elif unit == 'uJy':
+        value /= 1.e6
     else:
         return None
     return value
@@ -76,6 +78,8 @@ def convert_mjy(flux, unit):
         value *= 1e3
     elif unit == 'mJy':
         value = value
+    elif unit == 'uJy':
+        value /= 1000.
     else:
         return None
     return value

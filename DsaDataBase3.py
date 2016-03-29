@@ -3,12 +3,12 @@ import sys
 import DsaArrayResolutionCy3 as ARes
 import cx_Oracle
 import DsaTools3 as DsaTool
+# import logging
 
 from DsaGetCycle3 import get_all_apdm, get_apdm
 from collections import namedtuple
 from DsaXmlParsers3 import *
 from DsaConverter3 import *
-
 
 prj = '{Alma/ObsPrep/ObsProject}'
 val = '{Alma/ValueTypes}'
@@ -21,49 +21,67 @@ Range = namedtuple('Range', ['start', 'end'])
 
 PHASE_I_STATUS = ["Phase1Submitted", "Approved"]
 
+CYCLES_SQL = {"2011": "1", "2012": "2", "2013": "3", "2015": "5", "2016": "6"}
+CYCLES = {"2011": ["2011.1", "2011.A"],
+          "2012": ["2012.1", "2012.A"],
+          "2013": ["2013.1", "2013.A"],
+          "2015": ["2015.1", "2015.A"],
+          "2016": ["2016.1", "2016.A"]}
+
 
 # noinspection PyAttributeOutsideInit
 class DsaDatabase3(object):
 
     """
-    DsaDatabase3 is a class in charge of:
-        * Get APDM xml file from the archive
-        * Parse and extract the information from the xml files
-        * Store the APDM information in pandas DataFrames
-
-    A default instance will use the directory found on the $DSA system variable,
-    as a cache, and it will found the projects in the appropiate state for the
-    relevant Cycles.
-
-    :key refresh_apdm: Should the disk xml database be rebuilt? Default is True
-    :key path: path to store the xml database. Default is $DSA variable
-    :key allc2: temporal parameter for Cycle 3, load all Cycle2 projects, and
-         not only grade A. Default = True
-    :key loadp1: load phase I projects, and not only phase II. Default=True
-
 
     """
 
-    def __init__(self, path=None, refresh_apdm=True, allc2=True, loadp1=True):
-        """
-        Initialize the DSA3 database
-        :type path: str
-        :type refresh_apdm: bool
-        :type allc2: bool
-        :type loadp1: bool
+    def __init__(self, path=None, refresh_apdm=True,
+                 cycles=("2012", "2013", "2015"), loadp1=False,
+                 status=("Canceled", "Rejected", "ObservingTimedOut",
+                         "Completed")):
 
         """
 
+        Args:
+            path:
+            refresh_apdm:
+            cycles:
+            loadp1:
+            status:
+        """
+
+        # Set Initial Variables
         self._refresh_apdm = refresh_apdm
-        self._allc2 = allc2
         self._loadp1 = loadp1
+        self.status = status
+
+        self._cycles_sql = '['
+        self._cycles = []
+        for c in cycles:
+            self._cycles_sql += CYCLES_SQL[c]
+            self._cycles.extend(CYCLES[c])
+        self._cycles_sql += ']'
+
         # Default Paths and Preferences
         self._dsa_path = os.environ['DSA']
         if path:
             self._data_path = path
         else:
             self._data_path = os.environ['APDM_C3']
-        self.status = ["Canceled", "Rejected"]
+
+        # Load Exception File
+        try:
+            self._exceptions = pd.read_csv(
+                self._dsa_path + '/conf/ExceptionsScheduling.txt',
+                sep=' ', error_bad_lines=False, skip_blank_lines=True,
+                comment='#', header=None,
+                names=['CODE', 'sbName', 'forced_confs'])
+        except IOError:
+            print "No exception file found"
+            self._exceptions = None
+
+        # Create Initial DataFrame for Obsproject Info
         self.obsproject = pd.DataFrame()
         self._ares = ARes.ArrayRes(self._dsa_path + 'conf/')
 
@@ -76,214 +94,220 @@ class DsaDatabase3(object):
             "obs3.CYCLE "
             "FROM ALMA.BMMV_OBSPROJECT obs1, ALMA.OBS_PROJECT_STATUS obs2,"
             " ALMA.BMMV_OBSPROPOSAL obs3, ALMA.PROPOSAL obs4 "
-            "WHERE regexp_like (CODE, '^201[35]\..*\.[AST]') "
+            "WHERE regexp_like (CODE, '^201%s\..*\.[AST]') "
             "AND obs2.OBS_PROJECT_ID = obs1.PRJ_ARCHIVE_UID AND "
             "obs1.PRJ_ARCHIVE_UID = obs3.PROJECTUID AND "
             "obs4.ARCHIVE_UID = obs3.ARCHIVE_UID AND "
-            "obs4.DC_LETTER_GRADE IN ('A', 'B', 'C')")
+            "obs4.DC_LETTER_GRADE IN ('A', 'B', 'C')" % self._cycles_sql)
+        self._conx_str = os.environ['CON_STR']
+        con, cur = self.open_oracle_conn()
 
-        conx_string = os.environ['CON_STR']
-        self._connection = cx_Oracle.connect(conx_string)
-        self._cursor = self._connection.cursor()
+        try:
+            self._sql_sbstates = str(
+                "SELECT bs.PRJ_REF as OBSPROJECT_UID, bs.STATUS as SB_STATE,"
+                "SB_ARCHIVE_UID as SB_UID, EXECUTION_COUNT as EXECOUNT, "
+                "sbs.DOMAIN_ENTITY_STATE as SB_STATE2 "
+                "FROM ALMA.MV_SCHEDBLOCK bs, ALMA.SCHED_BLOCK_STATUS sbs,"
+                "ALMA.BMMV_OBSPROJECT obs "
+                "WHERE bs.SB_ARCHIVE_UID = sbs.DOMAIN_ENTITY_ID "
+                "AND obs.PRJ_ARCHIVE_UID = bs.PRJ_REF "
+                "AND regexp_like (obs.PRJ_CODE, '^201%s\..*\.[AST]')" %
+                self._cycles_sql)
+            cur.execute(self._sql_sbstates)
+            self.sb_status = pd.DataFrame(
+                cur.fetchall(),
+                columns=[rec[0] for rec in cur.description]
+            ).set_index('SB_UID', drop=False)
+            self.sb_status['EXECOUNT'] = self.sb_status.EXECOUNT.astype(float)
 
-        self._sql_sbstates = str(
-            "SELECT bs.PRJ_REF as OBSPROJECT_UID, bs.STATUS as SB_STATE,"
-            "SB_ARCHIVE_UID as SB_UID, EXECUTION_COUNT as EXECOUNT, "
-            "sbs.DOMAIN_ENTITY_STATE as SB_STATE2 "
-            "FROM ALMA.MV_SCHEDBLOCK bs, ALMA.SCHED_BLOCK_STATUS sbs,"
-            "ALMA.BMMV_OBSPROJECT obs "
-            "WHERE bs.SB_ARCHIVE_UID = sbs.DOMAIN_ENTITY_ID "
-            "AND obs.PRJ_ARCHIVE_UID = bs.PRJ_REF "
-            "AND regexp_like (obs.PRJ_CODE, '^201[35]\..*\.[AST]')")
-        self._cursor.execute(self._sql_sbstates)
-        self.sb_status = pd.DataFrame(
-            self._cursor.fetchall(),
-            columns=[rec[0] for rec in self._cursor.description]
-        ).set_index('SB_UID', drop=False)
-        self.sb_status['EXECOUNT'] = self.sb_status.EXECOUNT.astype(float)
+            # self.qa0: QAO flags for observed SBs
+            # Query QA0 flags from AQUA tables
+            self._sqlqa0 = str(
+                "SELECT aqua.SCHEDBLOCKUID as SB_UID, aqua.EXECBLOCKUID, "
+                "aqua.STARTTIME, aqua.ENDTIME, "
+                "aqua.QA0STATUS, shift.SE_STATUS, "
+                "shift.SE_PROJECT_CODE, shift.SE_ARRAYENTRY_ID, "
+                "aqua.FINALCOMMENTID "
+                "FROM ALMA.AQUA_V_EXECBLOCK aqua, ALMA.SHIFTLOG_ENTRIES shift "
+                "WHERE regexp_like "
+                "(aqua.OBSPROJECTCODE, '^201%s\..*\.[AST]') "
+                "AND aqua.EXECBLOCKUID = shift.SE_EB_UID" % self._cycles_sql)
 
-        # self.qa0: QAO flags for observed SBs
-        # Query QA0 flags from AQUA tables
-        self._sqlqa0 = str(
-            "SELECT aqua.SCHEDBLOCKUID as SB_UID, aqua.EXECBLOCKUID, "
-            "aqua.STARTTIME, aqua.ENDTIME, aqua.QA0STATUS, shift.SE_STATUS, "
-            "shift.SE_PROJECT_CODE, shift.SE_ARRAYENTRY_ID, "
-            "aqua.FINALCOMMENTID "
-            "FROM ALMA.AQUA_V_EXECBLOCK aqua, ALMA.SHIFTLOG_ENTRIES shift "
-            "WHERE regexp_like (aqua.OBSPROJECTCODE, '^201[35]\..*\.[AST]') "
-            "AND aqua.EXECBLOCKUID = shift.SE_EB_UID")
-
-        # noinspection SqlResolve
-        self._sqlqa0com = str(
-            "SELECT aqua.FINALCOMMENTID, "
-            "DBMS_LOB.SUBSTR(acom.CCOMMENT, 200) as COMENT "
-            "FROM ALMA.AQUA_V_EXECBLOCK aqua, ALMA.AQUA_COMMENT acom "
-            "WHERE regexp_like (aqua.OBSPROJECTCODE, '^201[35]\..*\.[AST]') "
-            "AND aqua.FINALCOMMENTID = acom.COMMENTID"
-        )
-
-        self._cursor.execute(self._sqlqa0)
-        self.aqua_execblock = pd.DataFrame(
-            self._cursor.fetchall(),
-            columns=[rec[0] for rec in self._cursor.description]
-        ).set_index('SB_UID', drop=False)
-
-        self._cursor.execute(self._sqlqa0com)
-        self._execblock_comm = pd.DataFrame(
-            self._cursor.fetchall(),
-            columns=[rec[0] for rec in self._cursor.description]
-        ).set_index('FINALCOMMENTID', drop=False)
-
-        self.aqdeb = self.aqua_execblock.copy()
-
-        self.aqua_execblock = pd.merge(
-            self.aqua_execblock, self._execblock_comm, on='FINALCOMMENTID',
-            how='left').set_index('SB_UID', drop=False)
-
-        self.aqua_execblock['delta'] = (self.aqua_execblock.ENDTIME -
-                                        self.aqua_execblock.STARTTIME)
-        self.aqua_execblock['delta'] = self.aqua_execblock.apply(
-            lambda x: x['delta'].total_seconds() / 3600., axis=1
-        )
-
-        self.qastatus = self.aqua_execblock.query(
-            'QA0STATUS in ["Unset", "Pass"]'
-            ).groupby(
-            ['SB_UID', 'QA0STATUS']).QA0STATUS.count().unstack().fillna(0)
-
-        if 'Pass' not in self.qastatus.columns.values:
-            self.qastatus['Pass'] = 0
-        if 'Unset' not in self.qastatus.columns.values:
-            self.qastatus['Unset'] = 0
-
-        self.qastatus['Observed'] = self.qastatus.Unset + self.qastatus.Pass
-        self.qastatus['ebTime'] = self.aqua_execblock.query(
-                'SE_STATUS == "SUCCESS"').groupby('SB_UID').delta.mean()
-
-        last_info = self.aqua_execblock.query(
-            'delta >= 0.2 and SE_STATUS == "SUCCESS" and '
-            'QA0STATUS in ["Pass", "Unset"]').sort_values(
-            by='STARTTIME', ascending=True
-        ).drop_duplicates('SB_UID',  keep='last').copy()
-
-        self.qastatus['last_observed'] = last_info['STARTTIME']
-        self.qastatus['last_qa0'] = last_info['QA0STATUS']
-        self.qastatus['last_status'] = last_info['SE_STATUS']
-
-        # Query for Executives
-        self._sql_executive = str(
-            "SELECT PROJECTUID as OBSPROJECT_UID, ASSOCIATEDEXEC "
-            "FROM ALMA.BMMV_OBSPROPOSAL "
-            "WHERE regexp_like (CYCLE, '^201[35].[1A]')")
-        self._cursor.execute(self._sql_executive)
-        self.executive = pd.DataFrame(
-            self._cursor.fetchall(), columns=['OBSPROJECT_UID', 'EXEC'])
-
-        self._sql_obstatus_exec = str(
-                "SELECT obs1.ARCHIVE_UID as SB_UID,"
-                "obs1.PRJ_REF as OBSPROJECT_UID, obs1.SB_NAME, "
-                "obs1.STATUS as SB_STATE, obs1.EXECUTION_COUNT "
-                "FROM ALMA.BMMV_SCHEDBLOCK obs1, ALMA.BMMV_OBSPROJECT obs2 "
-                "WHERE obs1.PRJ_REF = obs2.PRJ_ARCHIVE_UID "
-                "AND regexp_like (obs2.PRJ_CODE, '^201[35]\..*\.[AST]')"
+            # noinspection SqlResolve
+            self._sqlqa0com = str(
+                "SELECT aqua.FINALCOMMENTID, "
+                "DBMS_LOB.SUBSTR(acom.CCOMMENT, 200) as COMENT "
+                "FROM ALMA.AQUA_V_EXECBLOCK aqua, ALMA.AQUA_COMMENT acom "
+                "WHERE regexp_like "
+                "(aqua.OBSPROJECTCODE, '^201%s\..*\.[AST]') "
+                "AND aqua.FINALCOMMENTID = acom.COMMENTID" % self._cycles_sql
             )
 
-        self._c1 = np.sqrt(self._ares.data[0][1] * self._ares.data[0][2])
-        self._c2 = np.sqrt(self._ares.data[1][1] * self._ares.data[1][2])
-        self._c3 = np.sqrt(self._ares.data[2][1] * self._ares.data[2][2])
-        self._c4 = np.sqrt(self._ares.data[3][1] * self._ares.data[3][2])
-        self._c5 = np.sqrt(self._ares.data[4][1] * self._ares.data[4][2])
-        self._c6 = np.sqrt(self._ares.data[5][1] * self._ares.data[5][2])
-        self._c7 = np.sqrt(self._ares.data[6][1] * self._ares.data[6][2])
-        self._c8 = np.sqrt(self._ares.data[7][1] * self._ares.data[7][2])
-        self._listconf = [
-            self._c1, self._c2, self._c3, self._c4, self._c5, self._c6,
-            self._c7, self._c8]
-        self.start_apa()
+            cur.execute(self._sqlqa0)
+            self.aqua_execblock = pd.DataFrame(
+                cur.fetchall(),
+                columns=[rec[0] for rec in cur.description]
+            ).set_index('SB_UID', drop=False)
+
+            cur.execute(self._sqlqa0com)
+            self._execblock_comm = pd.DataFrame(
+                cur.fetchall(),
+                columns=[rec[0] for rec in cur.description]
+            ).set_index('FINALCOMMENTID', drop=False)
+
+            self.aqdeb = self.aqua_execblock.copy()
+
+            self.aqua_execblock = pd.merge(
+                self.aqua_execblock, self._execblock_comm, on='FINALCOMMENTID',
+                how='left').set_index('SB_UID', drop=False)
+
+            self.aqua_execblock['delta'] = (self.aqua_execblock.ENDTIME -
+                                            self.aqua_execblock.STARTTIME)
+            self.aqua_execblock['delta'] = self.aqua_execblock.apply(
+                lambda x: x['delta'].total_seconds() / 3600., axis=1
+            )
+
+            self.qastatus = self.aqua_execblock.query(
+                'QA0STATUS in ["Unset", "Pass"]'
+                ).groupby(
+                ['SB_UID', 'QA0STATUS']).QA0STATUS.count().unstack().fillna(0)
+
+            if 'Pass' not in self.qastatus.columns.values:
+                self.qastatus['Pass'] = 0
+            if 'Unset' not in self.qastatus.columns.values:
+                self.qastatus['Unset'] = 0
+
+            self.qastatus['Observed'] = self.qastatus.Unset + self.qastatus.Pass
+            self.qastatus['ebTime'] = self.aqua_execblock.query(
+                    'SE_STATUS == "SUCCESS"').groupby('SB_UID').delta.mean()
+
+            last_info = self.aqua_execblock.query(
+                'delta >= 0.2 and SE_STATUS == "SUCCESS" and '
+                'QA0STATUS in ["Pass", "Unset"]').sort_values(
+                by='STARTTIME', ascending=True
+            ).drop_duplicates('SB_UID',  keep='last').copy()
+
+            self.qastatus['last_observed'] = last_info['STARTTIME']
+            self.qastatus['last_qa0'] = last_info['QA0STATUS']
+            self.qastatus['last_status'] = last_info['SE_STATUS']
+
+            # Query for Executives
+            self._sql_executive = str(
+                "SELECT PROJECTUID as OBSPROJECT_UID, ASSOCIATEDEXEC "
+                "FROM ALMA.BMMV_OBSPROPOSAL "
+                "WHERE regexp_like (CYCLE, '^201%s.[1A]')" % self._cycles_sql)
+            cur.execute(self._sql_executive)
+            self.executive = pd.DataFrame(
+                cur.fetchall(), columns=['OBSPROJECT_UID', 'EXEC'])
+
+            self._sql_obstatus_exec = str(
+                    "SELECT obs1.ARCHIVE_UID as SB_UID,"
+                    "obs1.PRJ_REF as OBSPROJECT_UID, obs1.SB_NAME, "
+                    "obs1.STATUS as SB_STATE, obs1.EXECUTION_COUNT "
+                    "FROM ALMA.BMMV_SCHEDBLOCK obs1, ALMA.BMMV_OBSPROJECT obs2 "
+                    "WHERE obs1.PRJ_REF = obs2.PRJ_ARCHIVE_UID "
+                    "AND regexp_like (obs2.PRJ_CODE, '^201%s\..*\.[AST]')" %
+                    self._cycles_sql
+                )
+
+            self._c1 = np.sqrt(self._ares.data[0][1] * self._ares.data[0][2])
+            self._c2 = np.sqrt(self._ares.data[1][1] * self._ares.data[1][2])
+            self._c3 = np.sqrt(self._ares.data[2][1] * self._ares.data[2][2])
+            self._c4 = np.sqrt(self._ares.data[3][1] * self._ares.data[3][2])
+            self._c5 = np.sqrt(self._ares.data[4][1] * self._ares.data[4][2])
+            self._c6 = np.sqrt(self._ares.data[5][1] * self._ares.data[5][2])
+            self._c7 = np.sqrt(self._ares.data[6][1] * self._ares.data[6][2])
+            self._c8 = np.sqrt(self._ares.data[7][1] * self._ares.data[7][2])
+            self._listconf = [
+                self._c1, self._c2, self._c3, self._c4, self._c5, self._c6,
+                self._c7, self._c8]
+            self.start_apa()
+        finally:
+            cur.close()
+            con.close()
+
+    def open_oracle_conn(self):
+
+        """
+
+        Returns:
+            object:
+
+        """
+        connection = cx_Oracle.connect(self._conx_str, threaded=True)
+        cursor = connection.cursor()
+        return connection, cursor
 
     def start_apa(self, update_arch=False):
 
         """
-        Initializes the DsaDatabase dataframes.
 
-        The function queries the archive to look for cycle 1 and cycle 2
-        projects, disregarding any projects with status "Approved",
-        "Phase1Submitted", "Broken", "Canceled" or "Rejected".
+        Args:
+            update_arch:
 
-        The archive tables used are ALMA.BMMV_OBSPROPOSAL,
-        ALMA.OBS_PROJECT_STATUS, ALMA.BMMV_OBSPROJECT and
-        ALMA.XML_OBSPROJECT_ENTITIES.
-
-        :param update_arch:
-        :rtype: bool
-        :return: None
         """
-
         if update_arch:
             self.update_from_archive()
 
         # noinspection PyUnusedLocal
         status = self.status
+        # noinspection PyUnusedLocal
+        cycles = self._cycles
+        con, cur = self.open_oracle_conn()
 
-        # Query for Projects, from BMMV.
-        self._cursor.execute(self._sql1)
-        self._df1 = pd.DataFrame(
-            self._cursor.fetchall(),
-            columns=[rec[0] for rec in self._cursor.description])
+        try:
+            # Query for Projects, from BMMV.
+            cur.execute(self._sql1)
+            self._df1 = pd.DataFrame(
+                cur.fetchall(),
+                columns=[rec[0] for rec in cur.description])
 
-        if self._allc2:
             self._df1 = self._df1.query(
-                '(CYCLE in ["2015.1", "2015.A"]) or '
-                '(CYCLE in ["2013.1", "2013.A"] and '
-                ' DC_LETTER_GRADE == ["A", "B", "C"])').copy()
-        else:
-            self._df1 = self._df1.query(
-                '(CYCLE in ["2015.1", "2015.A"]) or '
-                '(CYCLE in ["2013.1", "2013.A"] and '
-                'DC_LETTER_GRADE == "A")').copy()
-        self.projects = pd.merge(
-            self._df1.query('PRJ_STATUS not in @status'), self.executive,
-            on='OBSPROJECT_UID'
-        ).set_index('CODE', drop=False)
+                'CYCLE in @cycles and '
+                'DC_LETTER_GRADE == ["A", "B", "C"]').copy()
 
-        # print(len(self._df1.query('PRJ_STATUS not in @status')))
-        #
-        # self.projects = pd.merge(
-        #     self._df1.query('PRJ_STATUS not in @status'), self.executive,
-        #     on='OBSPROJECT_UID'
-        # ).set_index('CODE', drop=False)
+            self.projects = pd.merge(
+                self._df1.query('PRJ_STATUS not in @status'), self.executive,
+                on='OBSPROJECT_UID'
+            ).set_index('CODE', drop=False)
 
-        self.projects['xmlfile'] = self.projects.apply(
-            lambda r: r['OBSPROJECT_UID'].replace('://', '___').replace(
-                '/', '_') + '.xml', axis=1
-        )
-        self.projects['phase'] = self.projects.apply(
-            lambda r: 'I' if r['PRJ_STATUS'] in PHASE_I_STATUS else 'II',
-            axis=1
-        )
+            self.projects['xmlfile'] = self.projects.apply(
+                lambda r: r['OBSPROJECT_UID'].replace('://', '___').replace(
+                    '/', '_') + '.xml', axis=1
+            )
+            self.projects['phase'] = self.projects.apply(
+                lambda r: 'I' if r['PRJ_STATUS'] in PHASE_I_STATUS else 'II',
+                axis=1
+            )
 
-        if not self._loadp1:
-            self.projects = self.projects.query('phase == "II"').copy()
+            if not self._loadp1:
+                self.projects = self.projects.query('phase == "II"').copy()
 
-        if self._refresh_apdm:
-            print("Downloading APDM data for %d projects...\n" %
-                  len(self.projects))
-            phase1uids = self.projects.query(
-                'phase == "I"').OBSPROJECT_UID.unique()
-            get_all_apdm(self._cursor, self._data_path,
-                         self.projects.OBSPROJECT_UID.unique(),
-                         phase1uids)
+            if self._refresh_apdm:
+                print("Downloading APDM data for %d projects...\n" %
+                      len(self.projects))
+                phase1uids = self.projects.query(
+                    'phase == "I"').OBSPROJECT_UID.unique()
+                get_all_apdm(cur, self._data_path,
+                             self.projects.OBSPROJECT_UID.unique(),
+                             phase1uids)
 
-        self._load_obsprojects(path=self._data_path + 'obsproject/')
-        self._load_sciencegoals()
-        self._load_sblocks_meta()
-        self._load_schedblocks()
-        self._add_imaging_param()
-        self.correct_specscan_times()
-        self._create_extrainfo()
+            self._load_obsprojects(path=self._data_path + 'obsproject/')
+            self._load_sciencegoals()
+            self._load_sblocks_meta()
+            self._load_schedblocks()
+            self._add_imaging_param()
+            self.correct_specscan_times()
+            self._create_extrainfo()
+        finally:
+            cur.close()
+            con.close()
 
     def _add_imaging_param(self):
 
+        """
+
+        """
         self._schedblocks_temp['assumedconf_ar_ot'] = (
             self._schedblocks_temp.minAR_ot / 0.9) * \
             self._schedblocks_temp.repfreq / 100.
@@ -302,6 +326,9 @@ class DsaDatabase3(object):
 
     def _create_extrainfo(self):
 
+        """
+
+        """
         target_tables_temp = pd.merge(
             self.orderedtar.query('name != "Calibrators"'),
             self.target, on=['SB_UID', 'targetId'])
@@ -333,7 +360,8 @@ class DsaDatabase3(object):
 
         """
 
-        :type path: str
+        Args:
+            path:
         """
         projt = []
 
@@ -355,8 +383,12 @@ class DsaDatabase3(object):
 
         """
 
-        :type path: str
-        :type xml: str
+        Args:
+            xml:
+            path:
+
+        Returns:
+
         """
         try:
             obsparse = ObsProject(xml, path)
@@ -368,6 +400,9 @@ class DsaDatabase3(object):
 
     def _load_sciencegoals(self):
 
+        """
+
+        """
         sgt = []
         tart = []
         visitt = []
@@ -412,6 +447,7 @@ class DsaDatabase3(object):
                      'estimatedTime', 'est12Time', 'estACATime',
                      'est7Time', 'eTPTime',
                      'AR', 'LAS', 'ARcor', 'LAScor', 'sensitivity',
+                     'sensitivityFrequencyWidthRef', 'sensitivityMeasure',
                      'useACA', 'useTP', 'isTimeConstrained', 'repFreq',
                      'repFreq_spec', 'singleContFreq', 'isCalSpecial',
                      'isPointSource', 'polarization', 'isSpectralScan', 'type',
@@ -421,7 +457,10 @@ class DsaDatabase3(object):
         self.sg_targets = pd.DataFrame(
             tart_arr,
             columns=['TARG_ID', 'OBSPROJECT_UID', 'SG_ID', 'tarType',
-                     'solarSystem', 'sourceName', 'RA', 'DEC', 'isMosaic',
+                     'solarSystem', 'sourceName', 'RA', 'DEC',
+                     'offra', 'offdec', 'isMosaic',
+                     'isRect', 'PA', 'rect_width',
+                     'rect_height', 'rect_spacing', 'mos_refsys',
                      'centerVel', 'centerVel_units', 'centerVel_refsys',
                      'centerVel_doppler', 'lineWidth']
         ).set_index('TARG_ID', drop=False)
@@ -446,16 +485,28 @@ class DsaDatabase3(object):
             sgspwt_arr,
             columns=['SG_ID', 'SPW_ID', 'transitionName', 'centerFrequency',
                      'bandwidth', 'spectralRes', 'isRepSPW', 'isSkyFreq',
-                     'group_index']
+                     'group_index', 'corr_ord', 'smoothingFunct',
+                     'smoothingFact']
         )
         self.sg_specscan = pd.DataFrame(
             sgspsct_arr,
             columns=['SG_ID', 'SSCAN_ID', 'startFrequency', 'endFrequency',
-                     'bandwidth', 'spectralRes', 'isSkyFreq']
+                     'bandwidth', 'spectralRes', 'isSkyFreq', 'smoothingFact']
         )
 
     def _read_sciencegoal(self, code, xml, obsproject_uid):
 
+        """
+
+        Args:
+            code:
+            xml:
+            obsproject_uid:
+
+        Returns:
+            obsproparse:
+
+        """
         try:
             if self.projects.ix[code, 'phase'] == 'I':
                 obspropparse = ObsProposal(
@@ -475,6 +526,10 @@ class DsaDatabase3(object):
             return 0
 
     def _load_sblocks_meta(self):
+
+        """
+
+        """
 
         sbt = []
         for r in self.obsproject.iterrows():
@@ -503,6 +558,16 @@ class DsaDatabase3(object):
 
     def _read_sblock_meta(self, phase, r):
 
+        """
+
+        Args:
+            phase:
+            r:
+
+        Returns:
+            obsparse:
+
+        """
         if phase == 'I':
             obsreview_uid = r[1].OBSREVIEW_UID
             if obsreview_uid is None:
@@ -529,6 +594,13 @@ class DsaDatabase3(object):
         return parse
 
     def _load_schedblocks(self, sb_path='schedblock/'):
+
+        """
+
+        Args:
+            sb_path:
+
+        """
 
         path = self._data_path + sb_path
 
@@ -718,28 +790,43 @@ class DsaDatabase3(object):
 
     def _update_apdm(self, obsproject_uid):
 
-        proj_xmlfile = get_apdm(self._cursor, self._data_path, obsproject_uid)
-        proj = [self._read_obsproject(
-            proj_xmlfile, self._data_path + 'obsproject/')]
-        projt_arr = np.array(proj, dtype=object)
-        obsproject = pd.DataFrame(
-            projt_arr,
-            columns=['CODE', 'OBSPROJECT_UID', 'OBSPROPOSAL_UID',
-                     'OBSREVIEW_UID', 'VERSION',
-                     'NOTE', 'IS_CALIBRATION', 'IS_DDT']
-        ).set_index('OBSPROJECT_UID', drop=False)
+        """
 
-        self.obsproject.update(obsproject)
-        self.update_from_archive()
-        self._update_sciencegoal(obsproject_uid)
-        self._update_sblock_meta(obsproject_uid)
-        self._update_schedblock(obsproject_uid)
-        self._add_imaging_param()
-        self.correct_specscan_times()
-        self._create_extrainfo()
+        Args:
+            obsproject_uid:
+        """
+        con, cur = self.open_oracle_conn()
+        try:
+            proj_xmlfile = get_apdm(cur, self._data_path, obsproject_uid)
+            proj = [self._read_obsproject(
+                proj_xmlfile, self._data_path + 'obsproject/')]
+            projt_arr = np.array(proj, dtype=object)
+            obsproject = pd.DataFrame(
+                projt_arr,
+                columns=['CODE', 'OBSPROJECT_UID', 'OBSPROPOSAL_UID',
+                         'OBSREVIEW_UID', 'VERSION',
+                         'NOTE', 'IS_CALIBRATION', 'IS_DDT']
+            ).set_index('OBSPROJECT_UID', drop=False)
+
+            self.obsproject.update(obsproject)
+            self.update_from_archive()
+            self._update_sciencegoal(obsproject_uid)
+            self._update_sblock_meta(obsproject_uid)
+            self._update_schedblock(obsproject_uid)
+            self._add_imaging_param()
+            self.correct_specscan_times()
+            self._create_extrainfo()
+        finally:
+            cur.close()
+            con.close()
 
     def _update_sciencegoal(self, obsproject_uid):
 
+        """
+
+        Args:
+            obsproject_uid:
+        """
         obsproposal_uid = self.obsproject.ix[obsproject_uid, 'OBSPROPOSAL_UID']
         prop_xmlfile = obsproposal_uid.replace('://', '___').replace('/', '_')
         prop_xmlfile += '.xml'
@@ -807,6 +894,11 @@ class DsaDatabase3(object):
             self.temp_param = self.temp_param.append(temppar, ignore_index=True)
 
     def _update_sblock_meta(self, obsproject_uid):
+        """
+
+        Args:
+            obsproject_uid:
+        """
         r = [0, None]
         r[1] = self.obsproject.ix[obsproject_uid]
         parse = self._read_sblock_meta('II', r)
@@ -827,6 +919,12 @@ class DsaDatabase3(object):
         self.sblocks.update(sblocks)
 
     def _update_schedblock(self, obsproject_uid, sb_path='schedblock/'):
+        """
+
+        Args:
+            obsproject_uid:
+            sb_path:
+        """
         path = self._data_path + sb_path
         rst = []
         rft = []
@@ -1044,29 +1142,33 @@ class DsaDatabase3(object):
 
     def update_from_archive(self):
 
-        self._cursor.execute(self._sql1)
-        self._df1 = pd.DataFrame(
-            self._cursor.fetchall(),
-            columns=[rec[0] for rec in self._cursor.description])
+        """
 
-        self._cursor.execute(self._sql_executive)
-        self.executive = pd.DataFrame(
-            self._cursor.fetchall(), columns=['OBSPROJECT_UID', 'EXEC'])
+        """
+        con, cur = self.open_oracle_conn()
+        try:
+            cur.execute(self._sql1)
+            self._df1 = pd.DataFrame(
+                cur.fetchall(),
+                columns=[rec[0] for rec in cur.description])
 
-        self._old_projects = self.projects.copy()
+            cur.execute(self._sql_executive)
+            self.executive = pd.DataFrame(
+               cur.fetchall(), columns=['OBSPROJECT_UID', 'EXEC'])
+
+            self._old_projects = self.projects.copy()
+        finally:
+            cur.close()
+            con.close()
 
         # noinspection PyUnusedLocal
         status = self.status
-        if self._allc2:
-            self._df1 = self._df1.query(
-                '(CYCLE in ["2015.1", "2015.A"]) or '
-                '(CYCLE in ["2013.1", "2013.A"] and '
-                ' DC_LETTER_GRADE == ["A", "B", "C"])').copy()
-        else:
-            self._df1 = self._df1.query(
-                '(CYCLE in ["2015.1", "2015.A"]) or '
-                '(CYCLE in ["2013.1", "2013.A"] and '
-                'DC_LETTER_GRADE == "A")').copy()
+        # noinspection PyUnusedLocal
+        cycles = self._cycles
+        self._df1 = self._df1.query(
+                'CYCLE in @cycles and '
+                'DC_LETTER_GRADE == ["A", "B", "C"]').copy()
+
         self.projects = pd.merge(
             self._df1.query('PRJ_STATUS not in @status'), self.executive,
             on='OBSPROJECT_UID'
@@ -1085,65 +1187,80 @@ class DsaDatabase3(object):
 
     def update_status(self):
 
-        self._cursor.execute(self._sqlqa0)
-        self.aqua_execblock = pd.DataFrame(
-            self._cursor.fetchall(),
-            columns=[rec[0] for rec in self._cursor.description]).set_index(
-            'SB_UID', drop=False)
+        """
 
-        self._cursor.execute(self._sqlqa0com)
-        self._execblock_comm = pd.DataFrame(
-            self._cursor.fetchall(),
-            columns=[rec[0] for rec in self._cursor.description]
-        ).set_index('FINALCOMMENTID', drop=False)
+        """
+        con, cur = self.open_oracle_conn()
+        try:
+            cur.execute(self._sqlqa0)
+            self.aqua_execblock = pd.DataFrame(
+                cur.fetchall(),
+                columns=[rec[0] for rec in cur.description]).set_index(
+                'SB_UID', drop=False)
 
-        self.aqua_execblock = pd.merge(
-            self.aqua_execblock, self._execblock_comm, on='FINALCOMMENTID',
-            how='left').set_index('SB_UID', drop=False)
+            cur.execute(self._sqlqa0com)
+            self._execblock_comm = pd.DataFrame(
+                cur.fetchall(),
+                columns=[rec[0] for rec in cur.description]
+            ).set_index('FINALCOMMENTID', drop=False)
 
-        self.aqua_execblock['delta'] = (self.aqua_execblock.ENDTIME -
-                                        self.aqua_execblock.STARTTIME)
-        self.aqua_execblock['delta'] = self.aqua_execblock.apply(
-            lambda x: x['delta'].total_seconds() / 3600., axis=1
-        )
+            self.aqua_execblock = pd.merge(
+                self.aqua_execblock, self._execblock_comm, on='FINALCOMMENTID',
+                how='left').set_index('SB_UID', drop=False)
 
-        self.qastatus = self.aqua_execblock.query(
-            'QA0STATUS in ["Unset", "Pass"]'
-            ).groupby(
-            ['SB_UID', 'QA0STATUS']).QA0STATUS.count().unstack().fillna(0)
+            self.aqua_execblock['delta'] = (self.aqua_execblock.ENDTIME -
+                                            self.aqua_execblock.STARTTIME)
+            self.aqua_execblock['delta'] = self.aqua_execblock.apply(
+                lambda x: x['delta'].total_seconds() / 3600., axis=1
+            )
 
-        if 'Pass' not in self.qastatus.columns.values:
-            self.qastatus['Pass'] = 0
-        if 'Unset' not in self.qastatus.columns.values:
-            self.qastatus['Unset'] = 0
+            self.qastatus = self.aqua_execblock.query(
+                'QA0STATUS in ["Unset", "Pass"]'
+                ).groupby(
+                ['SB_UID', 'QA0STATUS']).QA0STATUS.count().unstack().fillna(0)
 
-        self.qastatus['Observed'] = self.qastatus.Unset + self.qastatus.Pass
-        self.qastatus['ebTime'] = self.aqua_execblock.query(
+            if 'Pass' not in self.qastatus.columns.values:
+                self.qastatus['Pass'] = 0
+            if 'Unset' not in self.qastatus.columns.values:
+                self.qastatus['Unset'] = 0
+
+            self.qastatus['Observed'] = self.qastatus.Unset + self.qastatus.Pass
+            self.qastatus['ebTime'] = self.aqua_execblock.query(
                 'SE_STATUS == "SUCCESS" and QA0STATUS != ["Fail", "SemiPass"]'
-        ).groupby('SB_UID').delta.mean()
+            ).groupby('SB_UID').delta.mean()
 
-        last_info = self.aqua_execblock.query(
-            'delta >= 0.2 and SE_STATUS == "SUCCESS" and '
-            'QA0STATUS in ["Pass", "Unset"]').sort_values(
-            by='STARTTIME', ascending=True
-        ).drop_duplicates('SB_UID',  keep='last').copy()
+            last_info = self.aqua_execblock.query(
+                'delta >= 0.2 and SE_STATUS == "SUCCESS" and '
+                'QA0STATUS in ["Pass", "Unset"]').sort_values(
+                by='STARTTIME', ascending=True
+            ).drop_duplicates('SB_UID',  keep='last').copy()
 
-        self.qastatus['last_observed'] = last_info['STARTTIME']
-        self.qastatus['last_qa0'] = last_info['QA0STATUS']
-        self.qastatus['last_status'] = last_info['SE_STATUS']
+            self.qastatus['last_observed'] = last_info['STARTTIME']
+            self.qastatus['last_qa0'] = last_info['QA0STATUS']
+            self.qastatus['last_status'] = last_info['SE_STATUS']
 
-
-
-        self._cursor.execute(self._sql_sbstates)
-        self.sb_status = pd.DataFrame(
-            self._cursor.fetchall(),
-            columns=[rec[0] for rec in self._cursor.description]
-        ).set_index('SB_UID', drop=False)
-        self.sb_status['EXECOUNT'] = self.sb_status.EXECOUNT.astype(float)
+            cur.execute(self._sql_sbstates)
+            self.sb_status = pd.DataFrame(
+                cur.fetchall(),
+                columns=[rec[0] for rec in cur.description]
+            ).set_index('SB_UID', drop=False)
+            self.sb_status['EXECOUNT'] = self.sb_status.EXECOUNT.astype(float)
+        finally:
+            cur.close()
+            con.close()
 
     # noinspection PyUnusedLocal
     def _get_ar_lim(self, sbrow):
 
+        """
+
+        Args:
+            sbrow:
+
+        Returns:
+            Pandas.Series:
+
+        """
         ouid = sbrow['OBSPROJECT_UID']
         sgn = sbrow['sgName']
         uid = sbrow['SB_UID']
@@ -1166,7 +1283,8 @@ class DsaDatabase3(object):
                 sgn = 'CO(4-3), [CI]1-0 setup'
             elif sbrow['sgName'] == 'CO(7-6), [CI] 2-1 setup':
                 sgn = 'CO(7-6), [CI]2-1 setup'
-            elif sbrow['sgName'] == 'CRL618: HNC & HCO+ 3-2 + H29a + HC3N 28-27':
+            elif (sbrow['sgName'] ==
+                    'CRL618: HNC & HCO+ 3-2 + H29a + HC3N 28-27'):
                 sgn = 'CRL618: HNC &HCO+ 3-2 + H29a + HC3N 28-27'
             elif sbrow['sgName'] == 'HCN, H13CN & HC15N J=8-7':
                 sgn = 'HCN, H13CN &HC15N J=8-7'
@@ -1176,11 +1294,13 @@ class DsaDatabase3(object):
                 'OBSPROJECT_UID == @ouid and sg_name == @sgn')
 
         sbs = self._schedblocks_temp.query(
-            'OBSPROJECT_UID == @ouid and sgName == @sgn and array == "TWELVE-M"')
+            'OBSPROJECT_UID == @ouid and sgName == @sgn and '
+            'array == "TWELVE-M"')
         isextended = True
         sb_bl_num = len(sbs)
         sb_7m_num = len(self._schedblocks_temp.query(
-            'OBSPROJECT_UID == @ouid and sgName == @sgn and array == "SEVEN-M"'))
+            'OBSPROJECT_UID == @ouid and sgName == @sgn and '
+            'array == "SEVEN-M"'))
         sb_tp_num = len(self._schedblocks_temp.query(
             'OBSPROJECT_UID == @ouid and sgName == @sgn and '
             'array == "TP-Array"'))
@@ -1242,16 +1362,36 @@ class DsaDatabase3(object):
 
     def get_ousstatus(self):
 
-        sql = str('SELECT * FROM ALMA.OBS_UNIT_SET_STATUS')
-        self._cursor.execute(sql)
-        ous = pd.DataFrame(
-                self._cursor.fetchall(),
-                columns=[rec[0] for rec in self._cursor.description])
+        """
 
-        return ous
+        Returns:
+            Pandas.Frame:
+
+        """
+
+        con, cur = self.open_oracle_conn()
+        try:
+            sql = str(
+                'SELECT STATUS_ENTITY_ID, DOMAIN_ENTITY_ID, '
+                'DOMAIN_ENTITY_STATE, PARENT_OBS_UNIT_SET_STATUS_ID, '
+                'OBS_PROJECT_STATUS_ID, OBS_PROJECT_ID, TOTAL_USED_TIME_IN_SEC '
+                'FROM ALMA.OBS_UNIT_SET_STATUS')
+            cur.execute(sql)
+            ous = pd.DataFrame(
+                cur.fetchall(),
+                columns=[rec[0] for rec in cur.description])
+            return ous
+        finally:
+            cur.close()
+            con.close()
 
     def correct_specscan_times(self):
 
+        """
+
+        """
+
+        # noinspection PyUnusedLocal
         sg_ous = self.sciencegoals.query(
                 'isSpectralScan == True').OUS_ID.unique()
 

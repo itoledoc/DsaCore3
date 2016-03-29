@@ -76,6 +76,12 @@ class ObsProposal(object):
         sensitivity = convert_jy(
             performance.desiredSensitivity.pyval,
             performance.desiredSensitivity.attrib['unit'])
+        sensitivityfrequencywidth = convert_ghz(
+            performance.desiredSensitivityReferenceFrequencyWidth.pyval,
+            performance.desiredSensitivityReferenceFrequencyWidth.attrib['unit']
+            )
+        sensitivitymeasure = performance.attrib[
+            'desiredSensitivityFrequencyMeasure']
         useaca = performance.useACA.pyval
         usetp = performance.useTP.pyval
         ispointsource = performance.isPointSource.pyval
@@ -208,10 +214,17 @@ class ObsProposal(object):
                     ss.spectralResolution.attrib['unit']
                 )
                 isskyfreq = ss.isSkyFrequency.pyval
+                try:
+                    # smoothing = ss.AdvancedWindowSetup.attrib[
+                    #     'smoothingFunction']
+                    smoothfact = ss.AdvancedWindowSetup.smoothingFactor.pyval
+                except:
+                    # smoothing = None
+                    smoothfact = None
 
                 self.sg_specscan.append([
                     sg_id, ss_index, startfrequency, endfrequency,
-                    bandwidth, specres, isskyfreq
+                    bandwidth, specres, isskyfreq, smoothfact
                 ])
 
         else:
@@ -234,10 +247,18 @@ class ObsProposal(object):
                 representative_win = sp.representativeWindow.pyval
                 isskyfreq = sp.isSkyFrequency.pyval
                 group_index = sp.groupIndex.pyval
+
+                try:
+                    smoothing = sp.AdvancedWindowSetup.attrib[
+                        'smoothingFunction']
+                    smoothfact = sp.AdvancedWindowSetup.smoothingFactor.pyval
+                except:
+                    smoothing = None
+                    smoothfact = None
                 self.sg_specwindows.append([
                     sg_id, spw_index, transition_name, centerfrequency,
                     bandwidth, spectral_resolution, representative_win,
-                    isskyfreq, group_index
+                    isskyfreq, group_index, n+1., smoothing, smoothfact
                 ])
 
         # Correct AR and LAS to equivalent resolutions at 100GHz
@@ -279,12 +300,14 @@ class ObsProposal(object):
         self.sciencegoals.append([
             sg_id, self.obsproject_uid, ous_id, sg_name, bands, estimatedtime,
             twelvetime, acatime, seventime, tptime, ar, las, ar_cor,
-            las_cor, sensitivity, useaca, usetp, istimeconstrained, repfreq,
+            las_cor, sensitivity, sensitivityfrequencywidth, sensitivitymeasure,
+            useaca, usetp, istimeconstrained, repfreq,
             repfreq_spec, singlecont_freq, calspecial,
             ispointsource, polarization, is_spec_scan, type_pol, hassb, two_12m,
             num_targets, sg_mode]
         )
 
+    # noinspection PyUnboundLocalVariable
     def read_pro_targets(self, target, sgid, obsp_uid, c):
 
         tid = sgid + '_' + str(c)
@@ -321,14 +344,14 @@ class ObsProposal(object):
         try:
             ismosaic = target.isMosaic.pyval
         except AttributeError:
-            ismosaic = None
+            ismosaic = False
 
         sourcevelocity = target.sourceVelocity
         try:
             centervelocity = sourcevelocity.findall(
-                val + 'centervelocity')[0].pyval
+                val + 'centerVelocity')[0].pyval
             centervelocity_units = sourcevelocity.findall(
-                val + 'centervelocity')[0].attrib['unit']
+                val + 'centerVelocity')[0].attrib['unit']
             centervelocity_refsys = sourcevelocity.attrib['referenceSystem']
             centervelocity_dopp = sourcevelocity.attrib['dopplerCalcType']
         except:
@@ -343,10 +366,170 @@ class ObsProposal(object):
             expectedprop.expectedLineWidth.attrib['unit']
         )
 
-        self.sg_targets.append(
-            [tid, obsp_uid, sgid, typetar, solar_system, sourcename, ra, dec,
-             ismosaic, centervelocity, centervelocity_units,
-             centervelocity_refsys, centervelocity_dopp, expected_linewidth])
+        pa = 0
+        width = 0
+        height = 0
+        spacing = 0
+        offra = None
+        offdec = None
+        refsys = coord_type
+
+        try:
+            rectangle = target.findall(prj + 'Rectangle')[0]
+            refsys = rectangle.centre.attrib['system']
+            typerect = rectangle.centre.attrib['type']
+            pa = convert_deg(
+                rectangle.pALong.pyval,
+                rectangle.pALong.attrib['unit']
+            )
+            width = convert_deg(
+                rectangle.long.pyval,
+                rectangle.long.attrib['unit']
+            ) * 3600.
+            height = convert_deg(
+                rectangle.short.pyval,
+                rectangle.short.attrib['unit']
+            ) * 3600.
+            spacing = convert_deg(
+                rectangle.spacing.pyval,
+                rectangle.spacing.attrib['unit']
+            ) * 3600.
+            if typerect == "ABSOLUTE":
+                ra = convert_deg(
+                    rectangle.centre.findall(val + 'longitude')[0].pyval,
+                    rectangle.centre.findall(val + 'longitude')[0].attrib[
+                        'unit'])
+                dec = convert_deg(
+                    rectangle.centre.findall(val + 'latitude')[0].pyval,
+                    rectangle.centre.findall(val + 'latitude')[0].attrib[
+                        'unit'])
+                coord_t = rectangle.centre.attrib['system']
+                if coord_t == 'galactic':
+                    eph = ephem.Galactic(pd.np.radians(ra), pd.np.radians(dec))
+                    ra = pd.np.degrees(eph.to_radec()[0])
+                    dec = pd.np.degrees(eph.to_radec()[1])
+
+            else:
+                offra = convert_sec(
+                    rectangle.centre.findall(val + 'longitude')[0].pyval,
+                    rectangle.centre.findall(val + 'longitude')[0].attrib[
+                        'unit'])
+                offdec = convert_sec(
+                    rectangle.centre.findall(val + 'latitude')[0].pyval,
+                    rectangle.centre.findall(val + 'latitude')[0].attrib[
+                        'unit'])
+            isrect = True
+            ismosaic = True
+        except:
+            isrect = False
+
+        if not isrect:
+            try:
+                singpoint = target.findall(prj + 'SinglePoint')
+                if len(singpoint) == 1:
+                    ismosaic = False
+                    refsys = None
+                    sp = singpoint[0]
+                    typesp = sp.centre.attrib['type']
+                    if typesp == "ABSOLUTE":
+                        ra = convert_deg(
+                            sp.centre.findall(val + 'longitude')[0].pyval,
+                            sp.centre.findall(val + 'longitude')[0].attrib[
+                                'unit'])
+                        dec = convert_deg(
+                            sp.centre.findall(val + 'latitude')[0].pyval,
+                            sp.centre.findall(val + 'latitude')[0].attrib[
+                                'unit'])
+                        coord_t = sp.centre.attrib['system']
+                        if coord_t == 'galactic':
+                            eph = ephem.Galactic(pd.np.radians(ra),
+                                                 pd.np.radians(dec))
+                            ra = pd.np.degrees(eph.to_radec()[0])
+                            dec = pd.np.degrees(eph.to_radec()[1])
+                        offra = 0
+                        offdec = 0
+
+                    else:
+                        offra = convert_sec(
+                            sp.centre.findall(val + 'longitude')[0].pyval,
+                            sp.centre.findall(val + 'longitude')[0].attrib[
+                                'unit'])
+                        offdec = convert_sec(
+                            sp.centre.findall(val + 'latitude')[0].pyval,
+                            sp.centre.findall(val + 'latitude')[0].attrib[
+                                'unit'])
+
+                    self.sg_targets.append(
+                        [tid, obsp_uid, sgid, typetar, solar_system, sourcename,
+                         ra, dec, offra, offdec, ismosaic, isrect, pa, width,
+                         height, spacing, refsys, centervelocity,
+                         centervelocity_units, centervelocity_refsys,
+                         centervelocity_dopp, expected_linewidth])
+
+                if len(singpoint) > 1:
+                    ismosaic = True
+                    for n in range(len(singpoint)):
+                        sp = singpoint[n]
+                        typesp = sp.centre.attrib['type']
+                        sourcename = '%s (cm)' % sp.centre.findall(
+                            val + 'fieldName')[0].pyval
+
+                        if typesp == "ABSOLUTE":
+                            ra = convert_deg(
+                                sp.centre.findall(val + 'longitude')[0].pyval,
+                                sp.centre.findall(val + 'longitude')[0].attrib[
+                                    'unit'])
+                            dec = convert_deg(
+                                sp.centre.findall(val + 'latitude')[0].pyval,
+                                sp.centre.findall(val + 'latitude')[0].attrib[
+                                    'unit'])
+                            coord_t = sp.centre.attrib['system']
+                            if coord_t == 'galactic':
+                                eph = ephem.Galactic(pd.np.radians(ra),
+                                                     pd.np.radians(dec))
+                                ra = pd.np.degrees(eph.to_radec()[0])
+                                dec = pd.np.degrees(eph.to_radec()[1])
+                            offra = 0
+                            offdec = 0
+
+                        else:
+                            offra = convert_sec(
+                                sp.centre.findall(val + 'longitude')[0].pyval,
+                                sp.centre.findall(val + 'longitude')[0].attrib[
+                                    'unit'])
+                            offdec = convert_sec(
+                                sp.centre.findall(val + 'latitude')[0].pyval,
+                                sp.centre.findall(val + 'latitude')[0].attrib[
+                                    'unit'])
+
+                        refsys = sp.centre.attrib['system']
+                        self.sg_targets.append(
+                            [tid, obsp_uid, sgid, typetar, solar_system,
+                             sourcename, ra, dec, offra, offdec, ismosaic,
+                             isrect, pa, width, height, spacing, refsys,
+                             centervelocity, centervelocity_units,
+                             centervelocity_refsys, centervelocity_dopp,
+                             expected_linewidth])
+            except Exception, e:
+                print "failed? %s" % e
+                ismosaic = False
+                refsys = None
+                self.sg_targets.append(
+                    [tid, obsp_uid, sgid, typetar, solar_system, sourcename, ra,
+                     dec, offra, offdec, ismosaic, isrect, pa, width, height,
+                     spacing, refsys, centervelocity, centervelocity_units,
+                     centervelocity_refsys, centervelocity_dopp,
+                     expected_linewidth])
+
+        else:
+            if not ismosaic:
+                refsys = None
+            self.sg_targets.append(
+                [tid, obsp_uid, sgid, typetar, solar_system, sourcename, ra,
+                 dec, offra, offdec, ismosaic, isrect, pa, width, height,
+                 spacing, refsys, centervelocity, centervelocity_units,
+                 centervelocity_refsys, centervelocity_dopp,
+                 expected_linewidth])
 
 # TODO: Implement get original estimated times from OT
     # def get_times(self):
@@ -511,6 +694,12 @@ class ObsProject(object):
         sensitivity = convert_jy(
             performance.desiredSensitivity.pyval,
             performance.desiredSensitivity.attrib['unit'])
+        sensitivityfrequencywidth = convert_ghz(
+            performance.desiredSensitivityReferenceFrequencyWidth.pyval,
+            performance.desiredSensitivityReferenceFrequencyWidth.attrib['unit']
+            )
+        sensitivitymeasure = performance.attrib[
+            'desiredSensitivityFrequencyMeasure']
         useaca = performance.useACA.pyval
         usetp = performance.useTP.pyval
         ispointsource = performance.isPointSource.pyval
@@ -586,9 +775,18 @@ class ObsProject(object):
                         note = t.note.pyval
                     except AttributeError:
                         note = None
-                    isavoidconstraint = t.isAvoidConstraint.pyval
-                    priority = t.priority.pyval
-                    fixedstart = t.isFixedStart.pyval
+                    try:
+                        isavoidconstraint = t.isAvoidConstraint.pyval
+                    except AttributeError:
+                        isavoidconstraint = False
+                    try:
+                        priority = t.priority.pyval
+                    except AttributeError:
+                        priority = 0
+                    try:
+                        fixedstart = t.isFixedStart.pyval
+                    except AttributeError:
+                        fixedstart = None
                     self.temp_param.append([
                         sg_id, sg_name, self.obsproject_uid,
                         starttime, endtime, allowedmargin, allowedmargin_unit,
@@ -644,10 +842,17 @@ class ObsProject(object):
                     ss.spectralResolution.attrib['unit']
                 )
                 isskyfreq = ss.isSkyFrequency.pyval
+                try:
+                    # smoothing = ss.AdvancedWindowSetup.attrib[
+                    #     'smoothingFunction']
+                    smoothfact = ss.AdvancedWindowSetup.smoothingFactor.pyval
+                except AttributeError:
+                    # smoothing = None
+                    smoothfact = None
 
                 self.sg_specscan.append([
                     sg_id, ss_index, startfrequency, endfrequency,
-                    bandwidth, specres, isskyfreq
+                    bandwidth, specres, isskyfreq, smoothfact
                 ])
 
         else:
@@ -669,13 +874,20 @@ class ObsProject(object):
                 )
                 representative_win = sp.representativeWindow.pyval
                 isskyfreq = sp.isSkyFrequency.pyval
-                groupindex = sp.groupIndex.pyval
+                group_index = sp.groupIndex.pyval
+
+                try:
+                    smoothing = sp.AdvancedWindowSetup.attrib[
+                        'smoothingFunction']
+                    smoothfact = sp.AdvancedWindowSetup.smoothingFactor.pyval
+                except AttributeError:
+                    smoothing = None
+                    smoothfact = None
                 self.sg_specwindows.append([
                     sg_id, spw_index, transitionname, centerfrequency,
                     bandwidth, spectral_resolution, representative_win,
-                    isskyfreq, groupindex
+                    isskyfreq, group_index, n+1., smoothing, smoothfact
                 ])
-
         # Correct AR and LAS to equivalent resolutions at 100GHz
         arcor = ar * repfreq / 100.
         lascor = las * repfreq / 100.
@@ -715,19 +927,21 @@ class ObsProject(object):
         self.sciencegoals.append([
             sg_id, self.obsproject_uid, ous_id, sg_name, bands, estimatedtime,
             twelvetime, acatime, seventime, tptime, ar, las, arcor,
-            lascor, sensitivity, useaca, usetp, istimeconstrained, repfreq,
+            lascor, sensitivity, sensitivityfrequencywidth, sensitivitymeasure,
+            useaca, usetp, istimeconstrained, repfreq,
             repfreq_spec, singlecontfreq, calspecial,
             ispointsource, polarization, is_spec_scan, type_pol, hassb, two_12m,
             num_targets, sg_mode]
         )
 
+    # noinspection PyUnboundLocalVariable,PyUnboundLocalVariable
     def read_pro_targets(self, target, sgid, obsp_uid, c):
 
         tid = sgid + '_' + str(c)
         try:
-            solarsystem = target.attrib['solarSystemObject']
+            solar_system = target.attrib['solarSystemObject']
         except KeyError:
-            solarsystem = None
+            solar_system = None
 
         typetar = target.attrib['type']
         sourcename = target.sourceName.pyval
@@ -757,14 +971,14 @@ class ObsProject(object):
         try:
             ismosaic = target.isMosaic.pyval
         except AttributeError:
-            ismosaic = None
+            ismosaic = False
 
         sourcevelocity = target.sourceVelocity
         try:
             centervelocity = sourcevelocity.findall(
-                val + 'centervelocity')[0].pyval
+                val + 'centerVelocity')[0].pyval
             centervelocity_units = sourcevelocity.findall(
-                val + 'centervelocity')[0].attrib['unit']
+                val + 'centerVelocity')[0].attrib['unit']
             centervelocity_refsys = sourcevelocity.attrib['referenceSystem']
             centervelocity_dopp = sourcevelocity.attrib['dopplerCalcType']
         except IndexError:
@@ -779,10 +993,168 @@ class ObsProject(object):
             expectedprop.expectedLineWidth.attrib['unit']
         )
 
-        self.sg_targets.append(
-            [tid, obsp_uid, sgid, typetar, solarsystem, sourcename, ra, dec,
-             ismosaic, centervelocity, centervelocity_units,
-             centervelocity_refsys, centervelocity_dopp, expected_linewidth])
+        pa = 0
+        width = 0
+        height = 0
+        spacing = 0
+        offra = None
+        offdec = None
+        refsys = coord_type
+
+        try:
+            rectangle = target.findall(prj + 'Rectangle')[0]
+            refsys = rectangle.centre.attrib['system']
+            typerect = rectangle.centre.attrib['type']
+            pa = convert_deg(
+                rectangle.pALong.pyval,
+                rectangle.pALong.attrib['unit']
+            )
+            width = convert_deg(
+                rectangle.long.pyval,
+                rectangle.long.attrib['unit']
+            ) * 3600.
+            height = convert_deg(
+                rectangle.short.pyval,
+                rectangle.short.attrib['unit']
+            ) * 3600.
+            spacing = convert_deg(
+                rectangle.spacing.pyval,
+                rectangle.spacing.attrib['unit']
+            ) * 3600.
+            if typerect == "ABSOLUTE":
+                ra = convert_deg(
+                    rectangle.centre.findall(val + 'longitude')[0].pyval,
+                    rectangle.centre.findall(val + 'longitude')[0].attrib[
+                        'unit'])
+                dec = convert_deg(
+                    rectangle.centre.findall(val + 'latitude')[0].pyval,
+                    rectangle.centre.findall(val + 'latitude')[0].attrib[
+                        'unit'])
+                coord_t = rectangle.centre.attrib['system']
+                if coord_t == 'galactic':
+                    eph = ephem.Galactic(pd.np.radians(ra), pd.np.radians(dec))
+                    ra = pd.np.degrees(eph.to_radec()[0])
+                    dec = pd.np.degrees(eph.to_radec()[1])
+            else:
+                offra = convert_sec(
+                    rectangle.centre.findall(val + 'longitude')[0].pyval,
+                    rectangle.centre.findall(val + 'longitude')[0].attrib[
+                        'unit'])
+                offdec = convert_sec(
+                    rectangle.centre.findall(val + 'latitude')[0].pyval,
+                    rectangle.centre.findall(val + 'latitude')[0].attrib[
+                        'unit'])
+            isrect = True
+            ismosaic = True
+        except:
+            isrect = False
+
+        if not isrect:
+            try:
+                singpoint = target.findall(prj + 'SinglePoint')
+                if len(singpoint) == 1:
+                    ismosaic = False
+                    refsys = None
+                    sp = singpoint[0]
+                    typesp = sp.centre.attrib['type']
+                    if typesp == "ABSOLUTE":
+                        ra = convert_deg(
+                            sp.centre.findall(val + 'longitude')[0].pyval,
+                            sp.centre.findall(val + 'longitude')[0].attrib[
+                                'unit'])
+                        dec = convert_deg(
+                            sp.centre.findall(val + 'latitude')[0].pyval,
+                            sp.centre.findall(val + 'latitude')[0].attrib[
+                                'unit'])
+                        coord_t = sp.centre.attrib['system']
+                        if coord_t == 'galactic':
+                            print "galactic! %s " % obsp_uid
+                            eph = ephem.Galactic(pd.np.radians(ra),
+                                                 pd.np.radians(dec))
+                            ra = pd.np.degrees(eph.to_radec()[0])
+                            dec = pd.np.degrees(eph.to_radec()[1])
+                        offra = 0
+                        offdec = 0
+                    else:
+                        offra = convert_sec(
+                            sp.centre.findall(val + 'longitude')[0].pyval,
+                            sp.centre.findall(val + 'longitude')[0].attrib[
+                                'unit'])
+                        offdec = convert_sec(
+                            sp.centre.findall(val + 'latitude')[0].pyval,
+                            sp.centre.findall(val + 'latitude')[0].attrib[
+                                'unit'])
+                    self.sg_targets.append(
+                        [tid, obsp_uid, sgid, typetar, solar_system, sourcename,
+                         ra, dec, offra, offdec, ismosaic, isrect, pa, width,
+                         height, spacing, refsys, centervelocity,
+                         centervelocity_units, centervelocity_refsys,
+                         centervelocity_dopp, expected_linewidth])
+
+                if len(singpoint) > 1:
+                    ismosaic = True
+                    for n in range(len(singpoint)):
+                        sp = singpoint[n]
+                        typesp = sp.centre.attrib['type']
+                        sourcename = '%s (cm)' % sp.centre.findall(
+                            val + 'fieldName')[0].pyval
+
+                        if typesp == "ABSOLUTE":
+                            ra = convert_deg(
+                                sp.centre.findall(val + 'longitude')[0].pyval,
+                                sp.centre.findall(val + 'longitude')[0].attrib[
+                                    'unit'])
+                            dec = convert_deg(
+                                sp.centre.findall(val + 'latitude')[0].pyval,
+                                sp.centre.findall(val + 'latitude')[0].attrib[
+                                    'unit'])
+                            coord_t = sp.centre.attrib['system']
+                            if coord_t == 'galactic':
+                                eph = ephem.Galactic(pd.np.radians(ra),
+                                                     pd.np.radians(dec))
+                                ra = pd.np.degrees(eph.to_radec()[0])
+                                dec = pd.np.degrees(eph.to_radec()[1])
+                            offra = 0
+                            offdec = 0
+
+                        else:
+                            offra = convert_sec(
+                                sp.centre.findall(val + 'longitude')[0].pyval,
+                                sp.centre.findall(val + 'longitude')[0].attrib[
+                                    'unit'])
+                            offdec = convert_sec(
+                                sp.centre.findall(val + 'latitude')[0].pyval,
+                                sp.centre.findall(val + 'latitude')[0].attrib[
+                                    'unit'])
+
+                        refsys = sp.centre.attrib['system']
+                        self.sg_targets.append(
+                            [tid, obsp_uid, sgid, typetar, solar_system,
+                             sourcename, ra, dec, offra, offdec, ismosaic,
+                             isrect, pa, width, height, spacing, refsys,
+                             centervelocity, centervelocity_units,
+                             centervelocity_refsys, centervelocity_dopp,
+                             expected_linewidth])
+            except Exception, e:
+                print "obsproj failed? %s %s" % (e, obsp_uid)
+                ismosaic = False
+                refsys = None
+                self.sg_targets.append(
+                    [tid, obsp_uid, sgid, typetar, solar_system, sourcename, ra,
+                     dec, offra, offdec, ismosaic, isrect, pa, width, height,
+                     spacing, refsys, centervelocity, centervelocity_units,
+                     centervelocity_refsys, centervelocity_dopp,
+                     expected_linewidth])
+
+        else:
+            if not ismosaic:
+                refsys = None
+            self.sg_targets.append(
+                [tid, obsp_uid, sgid, typetar, solar_system, sourcename, ra,
+                 dec, offra, offdec, ismosaic, isrect, pa, width, height,
+                 spacing, refsys, centervelocity, centervelocity_units,
+                 centervelocity_refsys, centervelocity_dopp,
+                 expected_linewidth])
 
 
 # noinspection PyBroadException
@@ -863,7 +1235,6 @@ class SchedBlock(object):
             n_sp = len(self.data.ScienceParameters)
         except AttributeError:
             n_sp = 0
-            print "\nWarning, %s is malformed" % self.sb_uid
         try:
             n_acp = len(self.data.AmplitudeCalParameters)
         except AttributeError:

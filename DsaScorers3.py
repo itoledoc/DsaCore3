@@ -79,7 +79,7 @@ def calc_array_score(name, array_kind, ar, dec, array_ar_sb, minar, maxar):
             l = 0.8 * arcorr - minar
             sb_array_score = ((array_ar_sb - minar) / l) * 8.0
 
-        elif (array_ar_sb > 1.2 * arcorr):
+        elif array_ar_sb > 1.2 * arcorr:
             l = arcorr * 1.2 - maxar
             try:
                 s = 8. / l
@@ -116,9 +116,11 @@ def calc_sciencerank_score(srank, max_scirank=1400.):
 
 def calc_cycle_grade_score(grade, cycle):
 
-    if grade == 'A' and str(cycle).startswith('2015'):
+    if grade == 'A' and str(cycle).startswith('2013'):
         sb_grade_score = 10.
-    elif str(cycle).startswith('2013'):
+    elif grade == 'A' and str(cycle).startswith('2015'):
+        sb_grade_score = 9.
+    elif str(cycle).startswith('2013') or str(cycle).startswith('2012'):
         sb_grade_score = 8.
     elif grade == 'B':
         sb_grade_score = 4.

@@ -21,13 +21,13 @@ class DSACoreService(xmlrpc.XMLRPC):
             download_file(iers.IERS_A_URL, cache=True))
         self.data = Data.DsaDatabase3(
                 path='/home/itoledo/sim/',
-                refresh_apdm=True, allc2=False, loadp1=False)
+                refresh_apdm=True, loadp1=False)
         self.dsa = Dsa.DsaAlgorithm3(self.data)
 
     def xmlrpc_refresh(self):
         self.data = Data.DsaDatabase3(
                 path='/home/itoledo/sim/',
-                refresh_apdm=True, allc2=False, loadp1=False)
+                refresh_apdm=True, loadp1=False)
         self.dsa = Dsa.DsaAlgorithm3(self.data)
 
     def xmlrpc_run(self,
